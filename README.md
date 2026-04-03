@@ -45,7 +45,7 @@ Designed to create a cozy, aesthetic digital presence and support marketing camp
 ### 1. Clone the repository
 
 ```
-git clone https://github.com/yourusername/cozy-corner.git
+git clone https://github.com/WasimKaunain/CozyCornerCafe.git
 cd cozy-corner
 ```
 
