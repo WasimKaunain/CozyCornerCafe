@@ -1,0 +1,297 @@
+@import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500;600;700&family=Inter:wght@100;200;300;400;500;600;700;800;900&family=Playfair+Display:wght@400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 24 33% 8%;
+    --card: 0 0% 100%;
+    --card-foreground: 24 33% 8%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 33% 8%;
+    --primary: 42 90% 67%;
+    --primary-foreground: 24 33% 8%;
+    --secondary: 42 60% 92%;
+    --secondary-foreground: 24 33% 8%;
+    --muted: 42 30% 95%;
+    --muted-foreground: 24 20% 40%;
+    --accent: 42 90% 67%;
+    --accent-foreground: 24 33% 8%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 42 30% 85%;
+    --input: 42 30% 90%;
+    --ring: 42 90% 67%;
+    --radius: 0.625rem;
+    
+    --coffee-gold: #f7c35f;
+    --coffee-dark: #1c110a;
+    --coffee-cream: #fef2d6;
+    --coffee-gray: #e9e9e9;
+    --coffee-white: #ffffff;
+    
+    --ease-liquid: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-bounce-soft: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-dramatic: cubic-bezier(0.87, 0, 0.13, 1);
+    --ease-smooth-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-elastic: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    --ease-warm: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', serif;
+  }
+}
+
+@layer components {
+  .font-script {
+    font-family: 'Dancing Script', cursive;
+  }
+  
+  .font-display {
+    font-family: 'Playfair Display', serif;
+  }
+  
+  .font-body {
+    font-family: 'Inter', sans-serif;
+  }
+  
+  .text-gold {
+    color: var(--coffee-gold);
+  }
+  
+  .bg-gold {
+    background-color: var(--coffee-gold);
+  }
+  
+  .bg-coffee-dark {
+    background-color: var(--coffee-dark);
+  }
+  
+  .bg-cream {
+    background-color: var(--coffee-cream);
+  }
+  
+  .btn-primary {
+    @apply px-8 py-4 bg-gold text-coffee-dark font-semibold rounded-full transition-all duration-300;
+  }
+  
+  .btn-primary:hover {
+    @apply shadow-lg;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(247, 195, 95, 0.4);
+  }
+  
+  .btn-secondary {
+    @apply px-8 py-4 border-2 border-gold text-gold font-semibold rounded-full transition-all duration-300;
+  }
+  
+  .btn-secondary:hover {
+    @apply bg-gold text-coffee-dark;
+  }
+  
+  .section-padding {
+    @apply py-20 md:py-28 lg:py-32;
+  }
+  
+  .container-custom {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+}
+
+@layer utilities {
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  
+  .animate-float-delayed {
+    animation: float 6s ease-in-out infinite 2s;
+  }
+  
+  .animate-pulse-glow {
+    animation: pulse-glow 4s ease-in-out infinite;
+  }
+  
+  .animate-steam {
+    animation: steam 8s ease-out infinite;
+  }
+  
+  .animate-fade-up {
+    animation: fade-up 0.8s var(--ease-smooth-out) forwards;
+  }
+  
+  .animate-fade-in {
+    animation: fade-in 0.6s var(--ease-warm) forwards;
+  }
+  
+  .animate-scale-in {
+    animation: scale-in 0.5s var(--ease-bounce-soft) forwards;
+  }
+  
+  .animate-slide-left {
+    animation: slide-left 0.7s var(--ease-smooth-out) forwards;
+  }
+  
+  .animate-slide-right {
+    animation: slide-right 0.7s var(--ease-smooth-out) forwards;
+  }
+  
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+  
+  .preserve-3d {
+    transform-style: preserve-3d;
+  }
+  
+  .backface-hidden {
+    backface-visibility: hidden;
+  }
+  
+  .text-shadow-gold {
+    text-shadow: 0 2px 20px rgba(247, 195, 95, 0.3);
+  }
+  
+  .gradient-overlay {
+    background: linear-gradient(135deg, rgba(28,17,10,0.85) 0%, rgba(28,17,10,0.4) 50%, transparent 100%);
+  }
+  
+  .grain-texture {
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    opacity: 0.02;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-15px);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(247, 195, 95, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(247, 195, 95, 0.6);
+  }
+}
+
+@keyframes steam {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(-100px) scale(1.5);
+    opacity: 0;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-left {
+  from {
+    opacity: 0;
+    transform: translateX(50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(-50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--coffee-cream);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--coffee-gold);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #e5b34c;
+}
+
+/* Selection styling */
+::selection {
+  background: var(--coffee-gold);
+  color: var(--coffee-dark);
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
