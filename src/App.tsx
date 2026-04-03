@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/Terms";
+import QuickLinks from './pages/QuickLinks';
+import SocialHub from './components/SocialHub';
 
 // Header Component
 function Header() {
@@ -922,24 +924,6 @@ function Blog() {
 function Footer() {
   const [email, setEmail] = useState('');
 
-    const socialLinks = [
-    {
-      icon: Facebook,
-      url: "https://www.facebook.com/profile.php?id=61586996644376",
-      label: "Facebook",
-    },
-    {
-      icon: Instagram,
-      url: "https://www.instagram.com/cozycornersa.cafe/?hl=en",
-      label: "Instagram",
-    },
-    {
-      icon: FaWhatsapp,
-      url: "https://wa.me/966583236711",
-      label: "WhatsApp",
-    },
-  ];
-
   const quickLinks = [
     { name: 'Home', href: '#home' },
     { name: 'About Us', href: '#about' },
@@ -991,25 +975,12 @@ function Footer() {
               Crafting moments, one cup at a time. Experience the art of coffee in a warm, 
               inviting atmosphere.
             </p>
+                  
+            {/* 🔥 Social Hub Animation */}
+            <div className="mt-6 flex justify-start">
+              <SocialHub />
+            </div>
 
-              {/* Social Links */}
-              <div className="flex gap-4">
-                {socialLinks.map((item, i) => {
-                  const Icon = item.icon;
-                  return (
-                    <a
-                      key={i}
-                      href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={item.label}
-                      className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center hover:bg-coffee-gold hover:text-coffee-dark transition-all duration-300 group"
-                    >
-                      <Icon className="w-5 h-5 text-white group-hover:text-coffee-dark" />
-                    </a>
-                  );
-                })}
-              </div>
           </div>
 
           {/* Quick Links */}
@@ -1122,6 +1093,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/links" element={<QuickLinks />} />
       </Routes>
     </BrowserRouter>
   );
