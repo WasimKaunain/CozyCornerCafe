@@ -46,7 +46,7 @@ Designed to create a cozy, aesthetic digital presence and support marketing camp
 
 ```
 git clone https://github.com/WasimKaunain/CozyCornerCafe.git
-cd cozy-corner
+cd app
 ```
 
 ### 2. Install dependencies

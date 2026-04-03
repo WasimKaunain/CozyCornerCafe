@@ -1,7 +1,11 @@
 import { useEffect, useState, useRef } from 'react';
-import { Coffee, Menu as MenuIcon, X, Leaf, Flame, Wifi, User, Quote, Star,ArrowRight,Calendar,Tag,MapPin,Phone,Mail,Facebook,Instagram,Twitter,ChevronLeft,ChevronRight} from 'lucide-react';
+import { Coffee, Menu as MenuIcon, X, Leaf, Flame, Wifi, User, Quote, Star,ArrowRight, Calendar, Tag, MapPin, Phone, Mail,Facebook, Instagram, ChevronLeft, ChevronRight } from 'lucide-react';
+import { FaWhatsapp } from 'react-icons/fa';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/Terms";
 
 // Header Component
 function Header() {
@@ -40,7 +44,7 @@ function Header() {
             className="flex items-center gap-3 group"
           >
             <img 
-              src="/logo.jpg" 
+              src="/cozy-corner-logo-transparent.svg" 
               alt="Cozy Corner Cafe" 
               className="w-10 h-10 rounded-lg object-cover transition-transform duration-300 group-hover:scale-105"
             />
@@ -191,8 +195,8 @@ function Hero() {
             }`}
             style={{ transitionDelay: '1300ms' }}
           >
-            Where every cup is crafted with passion and every visit feels like coming home. 
-            Discover the perfect blend of flavor and warmth.
+            A cozy space in Riyadh where great coffee meets calm moments.
+            Whether you're catching up with friends, working quietly, or just taking a break , every cup here is made to feel like home.
           </p>
 
           {/* CTA Buttons */}
@@ -918,6 +922,24 @@ function Blog() {
 function Footer() {
   const [email, setEmail] = useState('');
 
+    const socialLinks = [
+    {
+      icon: Facebook,
+      url: "https://www.facebook.com/profile.php?id=61586996644376",
+      label: "Facebook",
+    },
+    {
+      icon: Instagram,
+      url: "https://www.instagram.com/cozycornersa.cafe/?hl=en",
+      label: "Instagram",
+    },
+    {
+      icon: FaWhatsapp,
+      url: "https://wa.me/966583236711",
+      label: "WhatsApp",
+    },
+  ];
+
   const quickLinks = [
     { name: 'Home', href: '#home' },
     { name: 'About Us', href: '#about' },
@@ -957,7 +979,7 @@ function Footer() {
           <div className="lg:col-span-1">
             <a href="#home" className="flex items-center gap-3 mb-6">
               <img 
-                src="/logo.jpg" 
+                src="/cozy-corner-logo-transparent.svg" 
                 alt="Cozy Corner Cafe" 
                 className="w-10 h-10 rounded-lg object-cover"
               />
@@ -969,18 +991,25 @@ function Footer() {
               Crafting moments, one cup at a time. Experience the art of coffee in a warm, 
               inviting atmosphere.
             </p>
-            {/* Social Links */}
-            <div className="flex gap-4">
-              {[Facebook, Instagram, Twitter].map((Icon, i) => (
-                <a
-                  key={i}
-                  href="#"
-                  className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center hover:bg-coffee-gold hover:text-coffee-dark transition-all duration-300 group"
-                >
-                  <Icon className="w-5 h-5 text-white group-hover:text-coffee-dark" />
-                </a>
-              ))}
-            </div>
+
+              {/* Social Links */}
+              <div className="flex gap-4">
+                {socialLinks.map((item, i) => {
+                  const Icon = item.icon;
+                  return (
+                    <a
+                      key={i}
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={item.label}
+                      className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center hover:bg-coffee-gold hover:text-coffee-dark transition-all duration-300 group"
+                    >
+                      <Icon className="w-5 h-5 text-white group-hover:text-coffee-dark" />
+                    </a>
+                  );
+                })}
+              </div>
           </div>
 
           {/* Quick Links */}
@@ -1006,15 +1035,17 @@ function Footer() {
             <ul className="space-y-4">
               <li className="flex items-start gap-3 text-white/60">
                 <MapPin className="w-5 h-5 text-coffee-gold flex-shrink-0 mt-0.5" />
-                <span>123 Coffee Street, Brew City, BC 12345</span>
+                <span>Askan Building No. 17,
+                    Prince Mansour Bin Abdulaziz Street
+                    Al Olaya, Riyadh 12611</span>
               </li>
               <li className="flex items-center gap-3 text-white/60">
                 <Phone className="w-5 h-5 text-coffee-gold flex-shrink-0" />
-                <span>(555) 123-4567</span>
+                <span>(+966) 58 323-6711</span>
               </li>
               <li className="flex items-center gap-3 text-white/60">
                 <Mail className="w-5 h-5 text-coffee-gold flex-shrink-0" />
-                <span>hello@coffeehouse.com</span>
+                <span>cozycornersa.cafe@gmail.com</span>
               </li>
             </ul>
           </div>
@@ -1048,13 +1079,13 @@ function Footer() {
         <div className="border-t border-white/10 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-white/40 text-sm">
-              © 2024 Cozy Corner Cafe. All rights reserved.
+              © 2026 Cozy Corner Cafe. All rights reserved.
             </p>
             <div className="flex gap-6 text-sm">
-              <a href="#" className="text-white/40 hover:text-coffee-gold transition-colors">
+              <a href="/privacy-policy" className="text-white/40 hover:text-coffee-gold transition-colors">
                 Privacy Policy
               </a>
-              <a href="#" className="text-white/40 hover:text-coffee-gold transition-colors">
+              <a href="/terms" className="text-white/40 hover:text-coffee-gold transition-colors">
                 Terms of Service
               </a>
             </div>
@@ -1066,9 +1097,10 @@ function Footer() {
 }
 
 // Main App
-function App() {
+
+function Home() {
   return (
-    <div className="min-h-screen bg-white">
+    <>
       <Header />
       <main>
         <Hero />
@@ -1079,8 +1111,21 @@ function App() {
         <Blog />
       </main>
       <Footer />
-    </div>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsOfService />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
 export default App;
+

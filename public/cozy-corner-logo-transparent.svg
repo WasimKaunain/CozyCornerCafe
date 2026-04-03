@@ -1,0 +1,42 @@
+<svg width="400" height="300" viewBox="0 0 400 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- L-shaped corner frame -->
+  <g transform="translate(200, 80)">
+    <!-- Top horizontal line -->
+    <rect x="-95" y="-75" width="95" height="8" fill="#B8956A"/>
+    <!-- Left vertical line -->
+    <rect x="-95" y="-75" width="8" height="140" fill="#B8956A"/>
+    <!-- Inner top line -->
+    <rect x="-75" y="-55" width="75" height="8" fill="#B8956A"/>
+    <!-- Inner left line -->
+    <rect x="-75" y="-55" width="8" height="120" fill="#B8956A"/>
+    <!-- Bottom horizontal line -->
+    <rect x="-95" y="65" width="120" height="8" fill="#B8956A"/>
+    <!-- Right part of bottom L -->
+    <rect x="25" y="73" width="35" height="15" fill="#B8956A"/>
+    <polygon points="25,73 60,73 60,88 35,88" fill="#B8956A"/>
+
+    <!-- Coffee cup -->
+    <g transform="translate(20, -10)">
+      <!-- Cup body -->
+      <path d="M -25 -5 Q -25 20, -15 25 L 15 25 Q 25 20, 25 -5 Z"
+            fill="none" stroke="#B8956A" stroke-width="5"/>
+      <!-- Handle -->
+      <path d="M 25 0 Q 40 0, 40 12 Q 40 24, 25 24"
+            fill="none" stroke="#B8956A" stroke-width="5"/>
+
+      <!-- Steam -->
+      <path d="M -8 -15 Q -5 -25, -8 -35"
+            fill="none" stroke="#B8956A" stroke-width="4" stroke-linecap="round"/>
+      <path d="M 5 -15 Q 8 -25, 5 -35"
+            fill="none" stroke="#B8956A" stroke-width="4" stroke-linecap="round"/>
+    </g>
+  </g>
+
+  <!-- Text: COZY -->
+  <text x="200" y="210" font-family="serif" font-size="56" font-weight="bold"
+        fill="#B8956A" text-anchor="middle" letter-spacing="4">COZY</text>
+
+  <!-- Text: CORNER -->
+  <text x="200" y="255" font-family="serif" font-size="38" font-weight="300"
+        fill="#B8956A" text-anchor="middle" letter-spacing="8">CORNER</text>
+</svg>
