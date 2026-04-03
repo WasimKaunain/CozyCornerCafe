@@ -6,7 +6,7 @@ export default function QuickLinks() {
     { name: "📍 Visit Us", url: "https://www.google.com/maps/place/Cozy+Corner+Cafe/@24.6763672,46.6996172,17z/data=!3m1!4b1!4m6!3m5!1s0x3e2f05140d4f4955:0xbf0491937c4649e7!8m2!3d24.6763672!4d46.6996172!16s%2Fg%2F11n48rn5vn?entry=ttu&g_ep=EgoyMDI2MDQwMS4wIKXMDSoASAFQAw%3D%3D" },
     { name: "📸 Instagram", url: "https://www.instagram.com/cozycornersa.cafe/?hl=en" },
     { name: "💬 WhatsApp", url: "https://wa.me/966583236711" },
-    { name: "🌐 Website", url: "https://cozycorner.cafe" },
+    { name: "🌐 Website", url: "https://cozy-corner-cafe-wasimkaunains-projects.vercel.app/" },
     { name: "👍 Facebook", url: "https://www.facebook.com/profile.php?id=61586996644376" },
   ];
 
