@@ -62,7 +62,7 @@ export default function QuickLinks() {
 
         {/* 🎉 OFFER */}
         <div className="mb-6 px-5 py-3 rounded-full bg-coffee-dark text-white font-semibold shadow-md animate-pulse text-sm">
-          🎉 50% OFF Drinks & 20% OFF Snacks
+          🎉 50% OFF on Drinks & 20% OFF on Snacks
         </div>
 
         {/* Logo */}
