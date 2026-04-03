@@ -1,73 +1,109 @@
-# React + TypeScript + Vite
+# ☕ Cozy Corner Cafe – Website
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A modern, responsive frontend website for **Cozy Corner Cafe**, built using React, TypeScript, and Vite.
+Designed to create a cozy, aesthetic digital presence and support marketing campaigns for the cafe launch.
 
-Currently, two official plugins are available:
+🌐 **Live Website:** https://cozycorner.cafe
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## React Compiler
+## 🚀 Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+* 🎨 Premium cozy UI/UX design
+* 📱 Fully responsive (mobile-first experience)
+* ⚡ Fast performance with Vite
+* 🧩 Modular React components
+* 📸 Image-driven layout for marketing & branding
+* 🔥 Optimized for Instagram & ad traffic conversion
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 🛠 Tech Stack
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+* **React** (Frontend UI)
+* **TypeScript**
+* **Vite** (Build tool)
+* **Tailwind CSS** (Styling)
+* **ESLint** (Code quality)
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+---
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## 📁 Project Structure
+
+```
+├── src/        # Main application code (components, pages)
+├── public/     # Static assets (images, logos)
+├── index.html  # Entry HTML file
+├── package.json
+├── vite.config.ts
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## ⚙️ Getting Started
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 1. Clone the repository
+
 ```
+git clone https://github.com/yourusername/cozy-corner.git
+cd cozy-corner
+```
+
+### 2. Install dependencies
+
+```
+npm install
+```
+
+### 3. Run development server
+
+```
+npm run dev
+```
+
+Open:
+
+```
+http://localhost:5173
+```
+
+---
+
+## 🏗 Build for Production
+
+```
+npm run build
+```
+
+---
+
+## 🌍 Deployment
+
+This project is deployed using **Vercel** for fast and seamless CI/CD.
+
+Every push to the `main` branch triggers automatic deployment.
+
+---
+
+## 📌 Future Improvements
+
+* Dynamic content (offers, menu updates via JSON/API)
+* Admin panel for content management
+* Online table booking system
+* Integration with backend services
+
+---
+
+## 👨‍💻 Author
+
+**Wasim Konain**
+M.Tech CSE @ IIT Gandhinagar
+
+---
+
+## ⭐ Note
+
+This is currently a **view-focused frontend project**.
+Full functionality and backend integration are planned in future updates.
+
+---
