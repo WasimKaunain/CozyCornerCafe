@@ -1,4 +1,4 @@
-# ☕ Cozy Corner Cafe – Website
+# ☕ Cozy Corner Cafe
 
 A modern, responsive frontend website for **Cozy Corner Cafe**, built using React, TypeScript, and Vite.
 Designed to create a cozy, aesthetic digital presence and support marketing campaigns for the cafe launch.
