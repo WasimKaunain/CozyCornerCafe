@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Coffee, Menu as MenuIcon, X, Leaf, Flame, Wifi, User, Quote, Star,ArrowRight, Calendar, Tag, MapPin, Phone, Mail,Facebook, Instagram, ChevronLeft, ChevronRight } from 'lucide-react';
-import { FaWhatsapp } from 'react-icons/fa';
+import { Coffee, Menu as MenuIcon, X, Leaf, Flame, Wifi, User, Quote, Star,ArrowRight, Calendar, Tag, MapPin, Phone, Mail, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BrowserRouter, Routes, Route } from "react-router-dom";
@@ -975,7 +974,7 @@ function Footer() {
               Crafting moments, one cup at a time. Experience the art of coffee in a warm, 
               inviting atmosphere.
             </p>
-                  
+
             {/* 🔥 Social Hub Animation */}
             <div className="mt-6 flex justify-start">
               <SocialHub />
