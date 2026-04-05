@@ -9,7 +9,7 @@ export default function QuickLinks() {
     { name: "📸 Instagram", url: "https://www.instagram.com/cozycornersa.cafe/?hl=en" },
     { name: "💬 WhatsApp", url: "https://wa.me/966583236711" },
     { name: "🌐 Website", url: "https://cozy-corner-cafe-wasimkaunains-projects.vercel.app/" },
-    { name: "👍 Facebook", url: "https://www.facebook.com/profile.php?id=61586996644376" },
+    { name: "👍 Facebook", url: "https://www.facebook.com/profile.php?id=61574238234936" },
   ];
 
   const targetDate = new Date("April 23, 2026 00:00:00").getTime();
