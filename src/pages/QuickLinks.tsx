@@ -113,7 +113,7 @@ export default function QuickLinks() {
           <div className="space-y-4">
 
             <div className="text-5xl md:text-6xl text-coffee-gold animate-pulse tracking-widest drop-shadow-[0_0_15px_rgba(255,215,0,0.6)]" style={{ fontFamily: "'Cinzel', serif" }}>
-              23<sup className="text-3xl ml-1">RD</sup> APRIL
+              30<sup className="text-3xl ml-1">TH</sup> APRIL
             </div>
 
             <div className="text-xl tracking-[0.3em] text-white/70">
