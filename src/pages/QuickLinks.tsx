@@ -12,7 +12,7 @@ export default function QuickLinks() {
     { name: "👍 Facebook", url: "https://www.facebook.com/profile.php?id=61574238234936" },
   ];
 
-  const targetDate = new Date("April 23, 2026 00:00:00").getTime();
+  const targetDate = new Date("April 30, 2026 00:00:00").getTime();
   const [timeLeft, setTimeLeft] = useState(targetDate - new Date().getTime());
   const [isLive, setIsLive] = useState(false);
   const [showBanner, setShowBanner] = useState(true);
