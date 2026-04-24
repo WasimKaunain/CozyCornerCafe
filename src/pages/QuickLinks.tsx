@@ -12,7 +12,7 @@ export default function QuickLinks() {
     { name: "👍 Facebook", url: "https://www.facebook.com/profile.php?id=61574238234936" },
   ];
 
-  const targetDate = new Date("April 30, 2026 00:00:00").getTime();
+  const targetDate = new Date("May 01, 2026 00:00:00").getTime();
   const [timeLeft, setTimeLeft] = useState(targetDate - new Date().getTime());
   const [isLive, setIsLive] = useState(false);
   const [showBanner, setShowBanner] = useState(true);
@@ -113,7 +113,7 @@ export default function QuickLinks() {
           <div className="space-y-4">
 
             <div className="text-5xl md:text-6xl text-coffee-gold animate-pulse tracking-widest drop-shadow-[0_0_15px_rgba(255,215,0,0.6)]" style={{ fontFamily: "'Cinzel', serif" }}>
-              30<sup className="text-3xl ml-1">TH</sup> APRIL
+              1<sup className="text-3xl ml-1">ST</sup> MAY
             </div>
 
             <div className="text-xl tracking-[0.3em] text-white/70">
@@ -138,7 +138,7 @@ export default function QuickLinks() {
 
               <div className="space-y-2 text-lg font-semibold">
                 <p>☕ 50% OFF on all drinks</p>
-                <p>🥐 20% OFF on all snacks</p>
+                <p>🥐 30% OFF on all snacks</p>
               </div>
 
               {/* Icons */}
