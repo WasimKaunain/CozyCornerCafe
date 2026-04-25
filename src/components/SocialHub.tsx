@@ -1,55 +1,54 @@
-import { motion } from "framer-motion";
 import { FaWhatsapp, FaInstagram, FaFacebook, FaMapMarkerAlt, FaEnvelope } from "react-icons/fa";
-import { Link } from "react-router-dom";
 
 export default function SocialHub() {
   const icons = [
-    FaWhatsapp,
-    FaInstagram,
-    FaFacebook,
-    FaMapMarkerAlt,
-    FaEnvelope,
+    {
+      Icon: FaWhatsapp,
+      href: "https://wa.me/966583236711",
+      label: "WhatsApp",
+    },
+    {
+      Icon: FaInstagram,
+      href: "https://www.instagram.com/cozycornersa.cafe/?hl=en",
+      label: "Instagram",
+    },
+    {
+      Icon: FaFacebook,
+      href: "https://www.facebook.com/profile.php?id=61574238234936",
+      label: "Facebook",
+    },
+    {
+      Icon: FaMapMarkerAlt,
+      href: "https://www.google.com/maps/place/Cozy+Corner+Cafe/@24.6763672,46.6996172,17z/data=!3m1!4b1!4m6!3m5!1s0x3e2f05140d4f4955:0xbf0491937c4649e7!8m2!3d24.6763672!4d46.6996172!16s%2Fg%2F11n48rn5vn?entry=ttu",
+      label: "Location",
+    },
+    {
+      Icon: FaEnvelope,
+      href: "mailto:cozycornersa.cafe@gmail.com",
+      label: "Email",
+    },
   ];
 
   return (
-    <div className="relative">
-      
-      {/* Animated Icons */}
-      <div className="relative w-32 h-32 flex items-center justify-center">
-        {icons.map((Icon, i) => {
-          const angle = (i / icons.length) * 2 * Math.PI;
-          const radius = 50;
+    <div className="mt-1">
+      <p className="text-white/60 text-sm mb-3">Follow & reach us</p>
 
-          return (
-            <motion.div
-              key={i}
-              animate={{
-                x: [0, Math.cos(angle) * radius, 0],
-                y: [0, Math.sin(angle) * radius, 0],
-              }}
-              transition={{
-                duration: 3,
-                repeat: Infinity,
-                delay: i * 0.2,
-              }}
-              className="absolute"
-            >
-              <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow">
-                <Icon className="text-coffee-dark" />
-              </div>
-            </motion.div>
-          );
-        })}
-
-        {/* Main Button */}
-        <Link to="/links">
-          <motion.div
-            whileTap={{ scale: 0.9 }}
-            className="w-14 h-14 bg-coffee-gold rounded-full shadow-lg flex items-center justify-center text-white text-lg font-bold cursor-pointer"
+      <div className="flex flex-wrap gap-3">
+        {icons.map(({ Icon, href, label }) => (
+          <a
+            key={label}
+            href={href}
+            target={href.startsWith("http") ? "_blank" : undefined}
+            rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
+            aria-label={label}
+            title={label}
+            className="group relative inline-flex items-center justify-center w-12 h-12 rounded-2xl border border-white/15 bg-white/10 backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/15"
           >
-            ☕
-          </motion.div>
-        </Link>
+            <span className="pointer-events-none absolute inset-0 rounded-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-16px_24px_rgba(0,0,0,0.24)]" />
+            <span className="pointer-events-none absolute -top-6 -left-6 h-20 w-20 rounded-full bg-brand-gold/15 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
+            <Icon className="relative text-brand-gold" />
+          </a>
+        ))}
       </div>
     </div>
   );
