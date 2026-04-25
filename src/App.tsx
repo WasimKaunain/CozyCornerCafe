@@ -183,7 +183,7 @@ function Hero() {
       <div className="relative z-20 pt-24 sm:pt-28 px-4 sm:px-6 w-full">
         <div
           className={
-            "mx-auto sm:mr-auto w-full max-w-[560px] rounded-[28px] sm:rounded-[34px] border border-white/15 bg-black/25 backdrop-blur-2xl shadow-[0_28px_90px_rgba(0,0,0,0.45)] p-6 sm:p-8 md:p-10 transition-all duration-700 " +
+            "mx-auto ml-0 w-full max-w-[560px] rounded-[28px] sm:rounded-[34px] border border-white/15 bg-black/25 backdrop-blur-2xl shadow-[0_28px_90px_rgba(0,0,0,0.45)] p-6 sm:p-8 md:p-10 transition-all duration-700 " +
             (isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6")
           }
           style={{ transitionDelay: '600ms' }}
