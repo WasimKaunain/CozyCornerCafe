@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
-import { getPool } from "./_db";
-import { withCors } from "./_cors";
+import { getPool } from "./_db.js";
+import { withCors } from "./_cors.js";
 
 const querySchema = z.object({
   // Either voucher code OR whatsapp

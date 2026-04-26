@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
 import { createHash } from "node:crypto";
-import { getPool } from "./_db";
-import { withCors } from "./_cors";
+import { getPool } from "./_db.js";
+import { withCors } from "./_cors.js";
 
 const bodySchema = z.object({
   whatsapp: z

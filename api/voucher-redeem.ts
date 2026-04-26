@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
-import { withCors } from "./_cors";
-import { getPool } from "./_db";
-import { requireAdminAuth } from "./_adminAuth";
+import { withCors } from "./_cors.js";
+import { getPool } from "./_db.js";
+import { requireAdminAuth } from "./_adminAuth.js";
 
 const bodySchema = z.object({
   code: z.string().trim().min(1).max(64),

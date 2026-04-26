@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { withCors } from "./_cors";
+import { withCors } from "./_cors.js";
 
 const bodySchema = z.object({
   pin: z.string().trim().min(3).max(32),

@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
-import { withCors } from "./_cors";
+import { withCors } from "./_cors.js";
 
 const querySchema = z.object({
   to: z.string().trim().min(8).max(20).optional(),

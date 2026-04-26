@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
-import { withCors } from "./_cors";
-import { renderVoucherCardPng } from "./whatsapp-media";
-import { getPool } from "./_db";
+import { withCors } from "./_cors.js";
+import { renderVoucherCardPng } from "./whatsapp-media.js";
+import { getPool } from "./_db.js";
 
 const querySchema = z.object({
   code: z.string().trim().min(8).max(8),
