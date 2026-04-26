@@ -76,6 +76,20 @@ export async function renderVoucherCardPng(opts: { code: string; qrUrl: string; 
   const templateImg = await loadImage(templatePath);
   ctx.drawImage(templateImg, 0, 0, W, H);
 
+  // DEBUG OVERLAY (temporary): if you still see a raw template, this will prove the function output isn't what you are viewing.
+  // Remove after diagnosis.
+  ctx.save();
+  ctx.globalAlpha = 0.92;
+  ctx.fillStyle = "#ff0055";
+  ctx.fillRect(30, 30, 720, 110);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "700 36px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillText(`DEBUG RENDER OK • ${opts.code}`, 55, 85);
+  ctx.restore();
+
   // --- QR overlay ---
   const qrBuf = await fetchAsBuffer(opts.qrUrl);
   console.log("[voucher-render] qr downloaded", { bytes: qrBuf.byteLength });
