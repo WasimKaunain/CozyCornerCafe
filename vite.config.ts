@@ -4,8 +4,10 @@ import { defineConfig } from "vite";
 import { inspectAttr } from "kimi-plugin-inspect-react";
 
 // https://vite.dev/config/
-export default defineConfig(({ mode }) => ({
-  base: mode === "production" ? "./" : "/",
+export default defineConfig(() => ({
+  // Vercel serves the app from the domain root, so the build must use absolute asset URLs.
+  // Using "./" breaks deep links like /quick-links because assets resolve relative to the route.
+  base: "/",
   plugins: [inspectAttr(), react()],
   resolve: {
     alias: {
