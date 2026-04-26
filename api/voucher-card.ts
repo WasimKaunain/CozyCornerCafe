@@ -12,6 +12,11 @@ const querySchema = z.object({
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   withCors(res);
 
+  // Avoid any caching of generated images (Vercel edge, browser, etc.)
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
@@ -19,6 +24,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!parsed.success) {
     return res.status(400).json({ error: "Missing/invalid code" });
   }
+
+  const isProd = process.env.NODE_ENV === "production";
 
   try {
     const { code } = parsed.data;
@@ -48,11 +55,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     res.setHeader("Content-Type", "image/png");
-    res.setHeader("Cache-Control", "no-store");
     res.setHeader("Content-Disposition", `attachment; filename="cozy-corner-voucher-${code}.png"`);
 
     return res.status(200).send(png);
   } catch (err: any) {
-    return res.status(500).json({ error: "Failed to render voucher card", detail: err?.message });
+    return res.status(500).json({
+      error: "Failed to render voucher card",
+      detail: err?.message,
+      ...(isProd
+        ? {}
+        : {
+            debug: {
+              nodeEnv: process.env.NODE_ENV,
+              host: req.headers.host,
+              forwardedHost: req.headers["x-forwarded-host"],
+              forwardedProto: req.headers["x-forwarded-proto"],
+            },
+          }),
+    });
   }
 }

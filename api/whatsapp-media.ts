@@ -2,15 +2,28 @@ import { z } from "zod";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
+import { existsSync } from "node:fs";
 
 // --- Voucher card generation (server-side) ---
 
 function getVoucherCardTemplatePath() {
-  // Vercel serverless bundles often place this module at /var/task/api/*.js
-  // and assets from /public are copied to the bundle root as well.
-  // Resolve from the current module's directory to find: /var/task/public/voucher_template.png
+  // Try multiple locations:
+  // - local dev: <repo>/public/voucher_template.png
+  // - vercel: /var/task/public/voucher_template.png
   const moduleDir = dirname(fileURLToPath(import.meta.url));
-  return join(moduleDir, "..", "public", "voucher_template.png");
+
+  const candidates = [
+    // vercel bundle layout: /var/task/api -> /var/task/public
+    join(moduleDir, "..", "public", "voucher_template.png"),
+    // local: <repo>/api -> <repo>/public
+    join(process.cwd(), "public", "voucher_template.png"),
+  ];
+
+  for (const p of candidates) {
+    if (existsSync(p)) return p;
+  }
+
+  throw new Error(`voucher_template.png not found. Tried: ${candidates.join(", ")}`);
 }
 
 async function fetchAsBuffer(url: string) {

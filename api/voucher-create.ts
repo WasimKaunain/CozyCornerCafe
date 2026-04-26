@@ -294,7 +294,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const row = voucherRes.rows[0];
 
         // Provide a downloadable voucher-card endpoint (client will download/share manually)
-        const voucherCardUrl = `/api/voucher-card?code=${encodeURIComponent(row.code)}`;
+        // Use absolute URL so the download always targets the current deployment origin.
+        const origin = (req.headers["x-forwarded-proto"] ? `${req.headers["x-forwarded-proto"]}://` : "") + (req.headers["x-forwarded-host"] || req.headers.host || "");
+        const voucherCardUrl = origin
+          ? `${origin}/api/voucher-card?code=${encodeURIComponent(row.code)}`
+          : `/api/voucher-card?code=${encodeURIComponent(row.code)}`;
 
         return res.status(200).json({
           ok: true,
