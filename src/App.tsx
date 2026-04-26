@@ -1179,6 +1179,8 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
+        {/* Backwards-compatible alias */}
+        <Route path="/links" element={<QuickLinks />} />
         <Route path="/quick-links" element={<QuickLinks />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
