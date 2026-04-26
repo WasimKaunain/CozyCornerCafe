@@ -26,6 +26,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const isProd = process.env.NODE_ENV === "production";
+  const requestId = (req.headers["x-vercel-id"] as string) || (req.headers["x-request-id"] as string) || "";
+
+  // Server-side debug (visible in Vercel -> Functions -> Logs)
+  console.log("[voucher-card] start", {
+    requestId,
+    code: parsed.data.code,
+    host: req.headers.host,
+    forwardedHost: req.headers["x-forwarded-host"],
+    forwardedProto: req.headers["x-forwarded-proto"],
+    nodeEnv: process.env.NODE_ENV,
+  });
 
   try {
     const { code } = parsed.data;
@@ -38,6 +49,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
 
     const row = rowRes.rows?.[0];
+    console.log("[voucher-card] db lookup", { requestId, found: Boolean(row) });
+
     if (!row) {
       res.status(404).json({ error: "Voucher not found" });
       return;
@@ -54,11 +67,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       offerText,
     });
 
+    console.log("[voucher-card] rendered", { requestId, bytes: png?.byteLength });
+
     res.setHeader("Content-Type", "image/png");
     res.setHeader("Content-Disposition", `attachment; filename="cozy-corner-voucher-${code}.png"`);
 
     return res.status(200).send(png);
   } catch (err: any) {
+    console.error("[voucher-card] error", {
+      requestId,
+      message: err?.message,
+      stack: err?.stack,
+    });
+
     return res.status(500).json({
       error: "Failed to render voucher card",
       detail: err?.message,

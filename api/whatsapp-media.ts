@@ -20,9 +20,13 @@ function getVoucherCardTemplatePath() {
   ];
 
   for (const p of candidates) {
-    if (existsSync(p)) return p;
+    if (existsSync(p)) {
+      console.log("[voucher-render] template path", { path: p });
+      return p;
+    }
   }
 
+  console.error("[voucher-render] template not found", { candidates });
   throw new Error(`voucher_template.png not found. Tried: ${candidates.join(", ")}`);
 }
 
@@ -54,6 +58,18 @@ export async function renderVoucherCardPng(opts: { code: string; qrUrl: string; 
 
   const templatePath = getVoucherCardTemplatePath();
 
+  console.log("[voucher-render] start", {
+    code: opts.code,
+    qrUrlHost: (() => {
+      try {
+        return new URL(opts.qrUrl).host;
+      } catch {
+        return null;
+      }
+    })(),
+    hasOfferText: Boolean(opts.offerText),
+  });
+
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext("2d");
 
@@ -62,6 +78,7 @@ export async function renderVoucherCardPng(opts: { code: string; qrUrl: string; 
 
   // --- QR overlay ---
   const qrBuf = await fetchAsBuffer(opts.qrUrl);
+  console.log("[voucher-render] qr downloaded", { bytes: qrBuf.byteLength });
   const qrImg = await loadImage(qrBuf);
 
   ctx.save();
