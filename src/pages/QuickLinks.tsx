@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import confetti from "canvas-confetti";
-import { X, Sparkles, Ticket, Loader2, ShieldCheck, CalendarDays } from "lucide-react";
+import { X, Sparkles, Ticket, ShieldCheck, CalendarDays } from "lucide-react";
 
 const VALIDITY_TEXT = "Valid till 3rd May 11:59 PM";
 
@@ -31,7 +31,14 @@ function buildWaText(opts: {
 
 type CreatedVoucher = {
   customer: { id: number; name: string; whatsapp: string };
-  voucher: { id: number; code: string; validityEnd: string; createdAt: string };
+  voucher: {
+    id: number;
+    code: string;
+    validityEnd: string;
+    createdAt: string;
+    offer?: { id: number; title: string; description?: string };
+    voucherCardUrl?: string;
+  };
 };
 
 function pad2(n: number) {
@@ -188,7 +195,7 @@ export default function QuickLinks() {
         setQrUrl(qrData.qrUrl);
       }
 
-      // WhatsApp share link for customer
+      // Optional: build WhatsApp link so user can share to themselves manually
       const waRes = await fetch(
         `/api/voucher-qr?to=${encodeURIComponent(formatWaDigits(whatsapp))}&text=${encodeURIComponent(
           buildWaText({ name, code: createdData.voucher.code, validityText: VALIDITY_TEXT })
@@ -267,11 +274,11 @@ export default function QuickLinks() {
 
                   <div className="mt-5 sm:mt-6 grid grid-cols-1 gap-2 sm:gap-3 sm:grid-cols-2">
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <div className="text-brand-gold font-semibold">50% OFF</div>
+                      <div className="text-brand-gold font-semibold">30% OFF</div>
                       <div className="text-white/70 text-sm">Selected drinks</div>
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <div className="text-brand-gold font-semibold">30% OFF</div>
+                      <div className="text-brand-gold font-semibold">25% OFF</div>
                       <div className="text-white/70 text-sm">Snacks & desserts</div>
                     </div>
                   </div>
@@ -450,35 +457,20 @@ export default function QuickLinks() {
                     <div className="mt-1 font-mono text-3xl font-black tracking-widest text-brand-gold">
                       {created.voucher.code}
                     </div>
+
+                    {created.voucher.offer?.title && (
+                      <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                        <div className="text-[11px] text-white/55">Offer</div>
+                        <div className="mt-1 text-sm font-semibold text-white/90">{created.voucher.offer.title}</div>
+                      </div>
+                    )}
+
                     <div className="mt-3 inline-flex items-center gap-2 text-xs text-white/60">
                       <CalendarDays className="h-4 w-4 text-brand-gold" />
                       {VALIDITY_TEXT}
                     </div>
 
-                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                      <button
-                        onClick={() => void navigator.clipboard?.writeText(created.voucher.code)}
-                        className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white/85 transition hover:bg-white/10"
-                      >
-                        Copy code
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (!waUrl) return;
-                          window.open(waUrl, "_blank", "noopener,noreferrer");
-                        }}
-                        className={
-                          "inline-flex items-center justify-center rounded-2xl bg-brand-gold px-4 py-3 text-sm font-semibold text-brand-navy transition hover:brightness-110 " +
-                          (!waUrl ? "opacity-60 pointer-events-none" : "")
-                        }
-                      >
-                        Share on WhatsApp
-                      </button>
-                    </div>
-
-                    <div className="mt-4 text-[11px] text-white/55 whitespace-pre-line">
-                      {waText}
-                    </div>
+                    <div className="mt-4 text-[11px] text-white/55 whitespace-pre-line">{waText}</div>
                   </div>
 
                   <div className="rounded-3xl border border-white/12 bg-black/20 p-5">
@@ -493,32 +485,31 @@ export default function QuickLinks() {
                         <div className="text-xs text-white/55">Generating QR...</div>
                       )}
                     </div>
-                    <div className="mt-3 text-xs text-white/55">
-                      Present this QR at the billing counter. Staff will validate this voucher.
-                    </div>
+                    <div className="mt-3 text-xs text-white/55">Present this QR at the billing counter. Staff will validate this voucher.</div>
                   </div>
                 </div>
 
-                <div className="mt-5 flex flex-col sm:flex-row gap-3">
-                  <button
-                    onClick={closeVoucherModal}
+                {/* Bottom actions: exactly two options */}
+                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                  <a
+                    href={created.voucher.voucherCardUrl || `/api/voucher-card?code=${encodeURIComponent(created.voucher.code)}`}
+                    download
                     className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-5 py-3 font-semibold text-white/85 transition hover:bg-white/10"
                   >
-                    Close
-                  </button>
+                    Download Voucher
+                  </a>
+
                   <button
                     onClick={() => {
-                      closeVoucherModal();
-                      setStep("start");
-                      setCreated(null);
-                      setError(null);
-                      setQrUrl(null);
-                      setWaUrl(null);
-                      setLoading(false);
+                      if (!waUrl) return;
+                      window.open(waUrl, "_blank", "noopener,noreferrer");
                     }}
-                    className="inline-flex items-center justify-center rounded-2xl bg-brand-gold px-5 py-3 font-semibold text-brand-navy transition hover:brightness-110"
+                    className={
+                      "inline-flex items-center justify-center rounded-2xl bg-brand-gold px-5 py-3 font-semibold text-brand-navy transition hover:brightness-110 " +
+                      (!waUrl ? "opacity-60 pointer-events-none" : "")
+                    }
                   >
-                    Generate another
+                    Share on WhatsApp
                   </button>
                 </div>
 
@@ -632,29 +623,18 @@ export default function QuickLinks() {
                         </div>
                       )}
 
-                      <button
-                        disabled={loading}
-                        onClick={submit}
-                        className="h-12 rounded-2xl bg-brand-gold font-semibold text-brand-navy transition hover:brightness-110 disabled:opacity-60 disabled:hover:brightness-100 inline-flex items-center justify-center gap-2"
-                      >
-                        {loading ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Generating...
-                          </>
-                        ) : (
-                          "Submit & Generate Voucher"
-                        )}
-                      </button>
-
-                      <label className="flex items-start gap-3 text-[11px] text-white/60">
-                        <input
-                          type="checkbox"
-                          defaultChecked
-                          className="mt-0.5 h-4 w-4 rounded border-white/20 bg-black/20 text-brand-gold accent-[rgb(195,160,89)]"
-                        />
-                        <span>I agree to receive updates and promotional messages on WhatsApp.</span>
-                      </label>
+                      {step === "form" ? (
+                        <div className="mt-4 space-y-3">
+                          <button
+                            type="button"
+                            onClick={submit}
+                            disabled={loading}
+                            className="w-full rounded-xl bg-white text-[#0b102e] px-4 py-3 font-bold disabled:opacity-60"
+                          >
+                            {loading ? "Claiming..." : "Claim Voucher"}
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 )}

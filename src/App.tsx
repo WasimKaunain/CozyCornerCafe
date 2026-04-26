@@ -7,6 +7,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/Terms";
 import QuickLinks from './pages/QuickLinks';
 import SocialHub from './components/SocialHub';
+import AdminScanner from "./pages/AdminScanner";
 
 // Header Component
 function Header() {
@@ -1178,9 +1179,10 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/quick-links" element={<QuickLinks />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
-        <Route path="/links" element={<QuickLinks />} />
+        <Route path="/admin" element={<AdminScanner />} />
       </Routes>
     </BrowserRouter>
   );

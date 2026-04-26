@@ -3,13 +3,115 @@ import { z } from "zod";
 import { getPool } from "./_db";
 import { withCors } from "./_cors";
 import { customAlphabet } from "nanoid";
-import {
-  downloadAsBlob,
-  uploadWhatsAppMedia,
-  sendWhatsAppImageMessage,
-  renderVoucherCardPng,
-  sendWhatsAppTemplateMessage,
-} from "./whatsapp-media";
+
+// Offer pool (DB-backed catalog)
+// NOTE: We keep an in-code seed list so the DB can be auto-initialized.
+const OFFER_SEED = [
+  {
+    id: 1,
+    title: "Buy 1 Drink, Get 1 Free",
+    description: "Buy any drink and get another drink free of equal or lesser value.",
+    initialStock: 8,
+  },
+  {
+    id: 2,
+    title: "Pancakes/Waffles + Free Coffee of the Day",
+    description:
+      "Order a full portion of pancakes or waffles and enjoy a complimentary Coffee of the Day.",
+    initialStock: 8,
+  },
+  {
+    id: 3,
+    title: "Pancakes/Waffles + Free V60 Coffee",
+    description: "Order pancakes or waffles and get a free V60 coffee.",
+    initialStock: 8,
+  },
+  {
+    id: 4,
+    title: "French Toast + 50% Off Hot Coffee",
+    description: "Order French toast and get 50% off any hot coffee.",
+    initialStock: 8,
+  },
+  {
+    id: 5,
+    title: "Ciabatta + Free Cappuccino",
+    description: "Order a ciabatta sandwich and enjoy a free cappuccino.",
+    initialStock: 8,
+  },
+  {
+    id: 6,
+    title: "Ciabatta + Mojito for Just 3 SR",
+    description: "Order a ciabatta sandwich and get a mojito for only 3 SR.",
+    initialStock: 8,
+  },
+  {
+    id: 7,
+    title: "Cheesecake + Free Espresso",
+    description: "Order cheesecake and get a free espresso.",
+    initialStock: 10,
+  },
+  {
+    id: 8,
+    title: "Peach Tea for Only 5 SR",
+    description: "Enjoy a peach tea for only 5 SR.",
+    initialStock: 8,
+  },
+  {
+    id: 9,
+    title: "Espresso for Only 2 SR",
+    description: "Grab an espresso for only 2 SR.",
+    initialStock: 10,
+  },
+  {
+    id: 10,
+    title: "Frappe + 50% Off Any Dessert",
+    description: "Order any frappe and get 50% off any dessert.",
+    initialStock: 10,
+  },
+  {
+    id: 11,
+    title: "Free Passion Fruit Mojito",
+    description: "Enjoy a passion fruit mojito on us.",
+    initialStock: 4,
+  },
+  {
+    id: 12,
+    title: "Hibiscus Lemonade + Free Croissant",
+    description: "Order a hibiscus lemonade and enjoy a free croissant.",
+    initialStock: 10,
+  },
+] as const;
+
+type OfferId = (typeof OFFER_SEED)[number]["id"];
+
+type Offer = {
+  id: OfferId;
+  title: string;
+  description: string;
+  initialStock: number;
+};
+
+function pickWeightedOffer(offers: Offer[], usedById: Record<number, number>): Offer {
+  const weighted: Array<{ offer: Offer; w: number }> = offers
+    .map((o) => ({
+      offer: o,
+      w: Math.max(0, (o.initialStock ?? 0) - (usedById[o.id] ?? 0)),
+    }))
+    .filter((x) => x.w > 0);
+
+  if (!weighted.length) {
+    // If all offers are exhausted, the campaign is effectively over (even if total cap not reached).
+    throw new Error("OFFERS_EXHAUSTED");
+  }
+
+  const total = weighted.reduce((s, x) => s + x.w, 0);
+  let r = Math.random() * total;
+  for (const x of weighted) {
+    r -= x.w;
+    if (r <= 0) return x.offer;
+  }
+  return weighted[weighted.length - 1].offer;
+}
 
 const bodySchema = z.object({
   name: z.string().trim().min(2).max(80),
@@ -36,75 +138,7 @@ function validityEnd() {
   return utc;
 }
 
-function buildCounterQrUrl(code: string) {
-  // Encodes only the voucher code (same as /api/voucher-qr?code=...)
-  return `https://api.qrserver.com/v1/create-qr-code/?size=420x420&data=${encodeURIComponent(code)}`;
-}
-
-async function sendWhatsAppVoucherCard(opts: {
-  to: string;
-  name: string;
-  code: string;
-  validityText: string;
-  qrUrl: string;
-}) {
-  const token = process.env.WHATSAPP_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const apiVersion = process.env.WHATSAPP_GRAPH_VERSION || "v22.0";
-
-  const templateName = process.env.WHATSAPP_TEMPLATE_NAME || "voucher_ready";
-  const languageCode = process.env.WHATSAPP_TEMPLATE_LANG || "en_US";
-
-  if (!token || !phoneNumberId) {
-    return { ok: false as const, skipped: true as const, reason: "Missing WHATSAPP_TOKEN/WHATSAPP_PHONE_NUMBER_ID" };
-  }
-
-  // 1) Send template text message (best-effort)
-  let templateRes: any = null;
-  try {
-    templateRes = await sendWhatsAppTemplateMessage({
-      token,
-      phoneNumberId,
-      apiVersion,
-      templateName,
-      languageCode,
-      to: opts.to,
-      parameters: [
-        { type: "text", text: opts.name },
-        { type: "text", text: opts.code },
-        { type: "text", text: opts.validityText },
-      ],
-    });
-  } catch (e: any) {
-    templateRes = { ok: false, error: e?.message || "Template send failed" };
-  }
-
-  // 2) Generate voucher card image server-side using the public template
-  const png = await renderVoucherCardPng({ code: opts.code, qrUrl: opts.qrUrl });
-  const blob = new Blob([png], { type: "image/png" });
-
-  const upload = await uploadWhatsAppMedia({
-    token,
-    phoneNumberId,
-    apiVersion,
-    file: blob,
-    filename: `voucher-${opts.code}.png`,
-    mimeType: "image/png",
-  });
-
-  const caption = `Cozy Corner Cafe Voucher\nCode: ${opts.code}\n${opts.validityText}`;
-
-  const imageRes = await sendWhatsAppImageMessage({
-    token,
-    phoneNumberId,
-    apiVersion,
-    to: opts.to,
-    mediaId: upload.id,
-    caption,
-  });
-
-  return { ok: true as const, templateRes, upload, imageRes };
-}
+const TOTAL_VOUCHER_CAP = 100;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   withCors(res);
@@ -133,6 +167,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
 
+      CREATE TABLE IF NOT EXISTS offers (
+        id INT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        initial_stock INT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS vouchers (
         id BIGSERIAL PRIMARY KEY,
         customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
@@ -142,24 +183,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         used_at TIMESTAMPTZ
       );
 
-      CREATE TABLE IF NOT EXISTS whatsapp_deliveries (
-        id BIGSERIAL PRIMARY KEY,
-        customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
-        voucher_id BIGINT NOT NULL REFERENCES vouchers(id) ON DELETE CASCADE,
-        to_number TEXT NOT NULL,
-        status TEXT NOT NULL,
-        provider_message_id TEXT,
-        provider_media_id TEXT,
-        error_message TEXT,
-        provider_payload JSONB,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
-
       CREATE UNIQUE INDEX IF NOT EXISTS uq_customers_whatsapp ON customers(whatsapp);
       CREATE UNIQUE INDEX IF NOT EXISTS uq_vouchers_customer_id ON vouchers(customer_id);
       CREATE INDEX IF NOT EXISTS idx_vouchers_customer_id ON vouchers(customer_id);
-      CREATE INDEX IF NOT EXISTS idx_whatsapp_deliveries_voucher_id ON whatsapp_deliveries(voucher_id);
     `);
+
+    // ---- Schema migrations (idempotent) ----
+    // Older DBs may already have `vouchers` created without offer columns.
+    await pool.query(`
+      ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS offer_id INT;
+      ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS offer_title TEXT;
+      ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS offer_description TEXT;
+
+      CREATE INDEX IF NOT EXISTS idx_vouchers_offer_id ON vouchers(offer_id);
+    `);
+
+    // Seed offers (idempotent)
+    for (const o of OFFER_SEED) {
+      await pool.query(
+        `INSERT INTO offers (id, title, description, initial_stock)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (id) DO UPDATE
+         SET title = EXCLUDED.title,
+             description = EXCLUDED.description,
+             initial_stock = EXCLUDED.initial_stock`,
+        [o.id, o.title, o.description, o.initialStock]
+      );
+    }
+
+    // After seeding offers, backfill any NULL offer columns (only for legacy rows, if any)
+    await pool.query(`
+      UPDATE vouchers
+      SET offer_id = COALESCE(offer_id, 1),
+          offer_title = COALESCE(offer_title, 'Buy 1 Drink, Get 1 Free'),
+          offer_description = COALESCE(offer_description, 'Buy any drink and get another drink free of equal or lesser value.')
+      WHERE offer_id IS NULL OR offer_title IS NULL OR offer_description IS NULL;
+    `);
+
+    // HARD CAP: stop after 100 vouchers total
+    const totalRes = await pool.query(`SELECT COUNT(*)::int AS cnt FROM vouchers`);
+    const totalIssued = Number(totalRes.rows?.[0]?.cnt ?? 0);
+    if (totalIssued >= TOTAL_VOUCHER_CAP) {
+      return res.status(410).json({
+        error: "Vouchers are fully claimed",
+        message:
+          "Sorry, vouchers are currently unavailable. Thank you for the amazing response! Follow us on Instagram for the next drop.",
+      });
+    }
 
     // Insert customer (WhatsApp must be unique)
     let customerId: number;
@@ -176,6 +246,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw err;
     }
 
+    // Weighted offer selection based on remaining stock in the offers catalog
+    const offersRes = await pool.query(
+      `SELECT id, title, description, initial_stock FROM offers ORDER BY id ASC`
+    );
+    const offers: Offer[] = offersRes.rows.map((r: any) => ({
+      id: Number(r.id) as OfferId,
+      title: String(r.title),
+      description: String(r.description),
+      initialStock: Number(r.initial_stock),
+    }));
+
+    const countsRes = await pool.query(
+      `SELECT offer_id, COUNT(*)::int FROM vouchers WHERE offer_id IS NOT NULL GROUP BY offer_id`
+    );
+    const usedById: Record<number, number> = {};
+    for (const r of countsRes.rows) usedById[Number(r.offer_id)] = Number(r.cnt);
+
+    let offer: Offer;
+    try {
+      // Dynamic distribution: weights are recomputed every request from remaining stock.
+      offer = pickWeightedOffer(offers.length ? offers : (OFFER_SEED as any), usedById);
+    } catch (e: any) {
+      if (String(e?.message) === "OFFERS_EXHAUSTED") {
+        return res.status(410).json({
+          error: "Vouchers are fully claimed",
+          message:
+            "Sorry, vouchers are currently unavailable. Thank you for the amazing response! Follow us on Instagram for the next drop.",
+        });
+      }
+      throw e;
+    }
+
     const validEnd = validityEnd();
 
     // Insert voucher (retry on code collisions)
@@ -184,68 +286,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       code = voucherCode();
       try {
         const voucherRes = await pool.query(
-          `INSERT INTO vouchers (customer_id, code, validity_end) VALUES ($1, $2, $3) RETURNING id, code, validity_end, created_at`,
-          [customerId, code, validEnd]
+          `INSERT INTO vouchers (customer_id, code, validity_end, offer_id, offer_title, offer_description)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           RETURNING id, code, validity_end, created_at, offer_id, offer_title, offer_description`,
+          [customerId, code, validEnd, offer.id, offer.title, offer.description]
         );
         const row = voucherRes.rows[0];
 
-        const validityText = process.env.VOUCHER_VALIDITY_TEXT || "Valid till 3rd May 11:59 PM";
-        const counterQrUrl = buildCounterQrUrl(row.code);
-
-        // Best-effort WhatsApp send + audit log
-        let waResult: any = null;
-        let waSent = false;
-        let waStatus = "failed";
-        let waErrorMessage: string | null = null;
-        let waProviderMessageId: string | null = null;
-        let waProviderMediaId: string | null = null;
-
-        try {
-          waResult = await sendWhatsAppVoucherCard({
-            to: whatsapp,
-            name,
-            code: row.code,
-            validityText,
-            qrUrl: counterQrUrl,
-          });
-
-          waSent = Boolean(waResult?.ok);
-          waStatus = waSent ? "sent" : "failed";
-
-          waProviderMediaId = waResult?.upload?.id || null;
-
-          // Prefer image message id; keep template id in payload (non-prod)
-          waProviderMessageId =
-            (waResult?.imageRes?.raw as any)?.messages?.[0]?.id ||
-            (waResult?.imageRes?.raw as any)?.message_id ||
-            (waResult?.templateRes?.raw as any)?.messages?.[0]?.id ||
-            null;
-        } catch (e: any) {
-          waSent = false;
-          waStatus = "exception";
-          waErrorMessage = e?.message || "Unknown WhatsApp error";
-          waResult = { ok: false, exception: true, message: waErrorMessage };
-        }
-
-        try {
-          await pool.query(
-            `INSERT INTO whatsapp_deliveries (
-              customer_id, voucher_id, to_number, status, provider_message_id, provider_media_id, error_message, provider_payload
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-            [
-              customerId,
-              row.id,
-              whatsapp,
-              waStatus,
-              waProviderMessageId,
-              waProviderMediaId,
-              waErrorMessage,
-              isProd ? null : waResult,
-            ]
-          );
-        } catch {
-          // auditing should never block voucher creation
-        }
+        // Provide a downloadable voucher-card endpoint (client will download/share manually)
+        const voucherCardUrl = `/api/voucher-card?code=${encodeURIComponent(row.code)}`;
 
         return res.status(200).json({
           ok: true,
@@ -254,14 +303,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             code: row.code,
             validityEnd: row.validity_end,
             createdAt: row.created_at,
+            offer: {
+              id: row.offer_id,
+              title: row.offer_title,
+              description: row.offer_description,
+            },
+            voucherCardUrl,
           },
           customer: { id: customerId, name, whatsapp },
-          whatsapp: waSent
-            ? { sent: true }
-            : {
-                sent: false,
-                ...(isProd ? {} : { debug: { waResult } }),
-              },
         });
       } catch (err: any) {
         const pgCode = err?.code;
