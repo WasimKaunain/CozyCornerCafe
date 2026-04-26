@@ -1,12 +1,16 @@
 import { z } from "zod";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { fileURLToPath } from "node:url";
+import { join, dirname } from "node:path";
 
 // --- Voucher card generation (server-side) ---
 
 function getVoucherCardTemplatePath() {
-  const url = new URL("../public/voucher_template.png", import.meta.url);
-  return fileURLToPath(url);
+  // Vercel serverless bundles often place this module at /var/task/api/*.js
+  // and assets from /public are copied to the bundle root as well.
+  // Resolve from the current module's directory to find: /var/task/public/voucher_template.png
+  const moduleDir = dirname(fileURLToPath(import.meta.url));
+  return join(moduleDir, "..", "public", "voucher_template.png");
 }
 
 async function fetchAsBuffer(url: string) {
