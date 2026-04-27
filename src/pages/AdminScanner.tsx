@@ -244,10 +244,28 @@ export default function AdminScanner() {
           { fps: 10, qrbox: { width: 260, height: 260 }, aspectRatio: 1.0 },
           async (decodedText) => {
             if (cancelled) return;
-            // debounce duplicates while popup is open / busy
-            if (busy) return;
-            await validateAndRedeem(decodedText);
-          },
+
+            // 🚫 prevent multiple scans
+            if (scanLockRef.current) return;
+
+            scanLockRef.current = true;
+
+            // show loading overlay
+            setScanStatus({ state: "loading", code: decodedText });
+
+            try {
+              await validateAndRedeem(decodedText);
+            } finally {
+              // after API completes → show result state
+              setScanStatus({
+                state: "result",
+                code: decodedText,
+                ok: true,
+                title: "Processed",
+                message: "Check result",
+              });
+            }
+          },,
           () => {
             // ignore scan errors
           }
@@ -348,24 +366,42 @@ export default function AdminScanner() {
             <div className="rounded-3xl border border-white/12 bg-white/5 p-5">
               <div className="text-sm font-semibold">Manual entry</div>
               <p className="mt-1 text-xs text-white/55">If camera fails, paste voucher code and redeem.</p>
-              <ManualRedeem onRedeem={validateAndRedeem} disabled={busy} />
+              <ManualRedeem onRedeem={validateAndRedeem} disabled={busy || scanLockRef.current} />
             </div>
           </div>
         )}
       </div>
+
+        {/* Loading Overlay */}
+        {scanStatus.state === "loading" ? (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-md">
+            <div className="flex flex-col items-center gap-4">
+              <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/20 border-t-white" />
+              <div className="text-sm text-white/80">Processing voucher...</div>
+            </div>
+          </div>
+        ) : null}
 
       {/* Result popup */}
       {popupOpen ? (
         <div className="fixed inset-0 z-[200] grid place-items-center px-4">
           <button
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setPopupOpen(false)}
+            onClick={() => {
+              setPopupOpen(false);
+              scanLockRef.current = false;
+              setScanStatus({ state: "idle" });
+            }}
             aria-label="Close popup"
           />
 
           <div className="relative w-full max-w-md rounded-3xl border border-white/12 bg-[#0b102e]/95 p-6 shadow-[0_40px_120px_rgba(0,0,0,0.6)]">
             <button
-              onClick={() => setPopupOpen(false)}
+              onClick={() => {
+                setPopupOpen(false);
+                scanLockRef.current = false;
+                setScanStatus({ state: "idle" });
+              }}
               className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-black/20 text-white/80 hover:bg-black/30"
               aria-label="Close"
             >
