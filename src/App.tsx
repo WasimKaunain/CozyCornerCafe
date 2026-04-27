@@ -7,7 +7,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/Terms";
 import QuickLinks from './pages/QuickLinks';
 import SocialHub from './components/SocialHub';
-import AdminScanner from "./pages/AdminScanner";
+import AdminPanel from "./pages/AdminPanel";
 
 // Header Component
 function Header() {
@@ -1122,8 +1122,7 @@ function Footer() {
                 <div
                   className="flex gap-3 py-3 px-3"
                   style={{
-                    width: 'max-content',
-                    animation: 'marquee 18s linear infinite',
+                    animation: "marquee 18s linear infinite",
                   }}
                 >
                   {marqueeLinks.map((link, idx) => (
@@ -1184,7 +1183,7 @@ function App() {
         <Route path="/quick-links" element={<QuickLinks />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
-        <Route path="/admin" element={<AdminScanner />} />
+        <Route path="/admin" element={<AdminPanel />} />
       </Routes>
     </BrowserRouter>
   );
