@@ -31,22 +31,67 @@ function safeEq(a: string, b: string) {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   withCors(res);
 
+  const isProd = process.env.NODE_ENV === "production";
+
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const parsed = bodySchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    console.warn("[admin-login] invalid input", {
+      hasBody: Boolean(req.body),
+      issues: parsed.error.issues?.map((i) => ({ path: i.path, message: i.message })),
+    });
+    return res.status(400).json({
+      error: "Invalid input",
+      details: isProd ? undefined : parsed.error.flatten(),
+    });
   }
 
-  const expectedPin = process.env.ADMIN_PIN;
-  const secret = process.env.ADMIN_AUTH_SECRET;
+  const expectedPinRaw = process.env.ADMIN_PIN;
+  const secretRaw = process.env.ADMIN_AUTH_SECRET;
 
-  if (!expectedPin || !secret) {
-    return res.status(500).json({ error: "Missing ADMIN_PIN or ADMIN_AUTH_SECRET" });
+  // Note: do not log secret values.
+  console.log("[admin-login] env check", {
+    hasAdminPin: Boolean(expectedPinRaw),
+    adminPinLen: expectedPinRaw ? String(expectedPinRaw).length : 0,
+    hasAdminAuthSecret: Boolean(secretRaw),
+  });
+
+  if (!expectedPinRaw && !secretRaw) {
+    return res.status(500).json({
+      error: "Missing environment variables: ADMIN_PIN and ADMIN_AUTH_SECRET",
+    });
   }
 
-  if (!safeEq(parsed.data.pin, expectedPin)) {
+  if (!expectedPinRaw) {
+    return res.status(500).json({
+      error: "Missing environment variable: ADMIN_PIN",
+    });
+  }
+
+  if (!secretRaw) {
+    return res.status(500).json({
+      error: "Missing environment variable: ADMIN_AUTH_SECRET",
+    });
+  }
+
+  // Harden against accidental whitespace/newlines in env variables and user input.
+  const expectedPin = String(expectedPinRaw).trim();
+  const providedPin = String(parsed.data.pin).trim();
+  const secret = String(secretRaw);
+
+  // Safe debug info (do not print PIN)
+  console.log("[admin-login] pin compare", {
+    providedLen: providedPin.length,
+    expectedLen: expectedPin.length,
+    expectedTrimmedChanged: String(expectedPinRaw).length !== expectedPin.length,
+  });
+
+  if (!safeEq(providedPin, expectedPin)) {
+    console.warn("[admin-login] invalid pin", {
+      providedLen: providedPin.length,
+    });
     return res.status(401).json({ error: "Invalid PIN" });
   }
 

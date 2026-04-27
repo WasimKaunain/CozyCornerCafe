@@ -767,13 +767,13 @@ export default function QuickLinks() {
 
                           <div className="mt-2 grid gap-3">
                             <button
-                            type="button"
-                            onClick={submit}
-                            disabled={true}
-                            className="w-full rounded-2xl bg-brand-gold text-brand-navy px-5 py-4 font-extrabold shadow-[0_18px_55px_rgba(195,160,89,0.28)] opacity-60 cursor-not-allowed transition"
-                          >
-                            Registrations coming soon...
-                          </button>
+                              type="button"
+                              onClick={submit}
+                              disabled={loading}
+                              className="w-full rounded-2xl bg-brand-gold text-brand-navy px-5 py-4 font-extrabold shadow-[0_18px_55px_rgba(195,160,89,0.28)] disabled:opacity-60 transition hover:brightness-110"
+                            >
+                              {loading ? "Claiming..." : "Claim Official Voucher"}
+                            </button>
 
                             <div className="text-center text-[11px] text-white/55 leading-relaxed">
                               After claiming, you must share the voucher to your WhatsApp and show the WhatsApp
