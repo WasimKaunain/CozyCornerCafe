@@ -495,9 +495,9 @@ function MenuSection() {
 
   const menuItems = [
     { name: 'Classic Espresso', price: '$4.50', image: '/menu-1.png' },
-    { name: 'Vanilla Latte', price: '$5.50', image: '/menu-2.png' },
-    { name: 'Caramel Macchiato', price: '$6.00', image: '/menu-3.png' },
-    { name: 'Cold Brew', price: '$5.00', image: '/menu-4.png' },
+    { name: 'Oreo Shake', price: '$5.50', image: '/menu-2.png' },
+    { name: 'Club Sandwich', price: '$6.00', image: '/menu-3.png' },
+    { name: 'Happy Heart', price: '$5.00', image: '/menu-4.png' },
     { name: 'Mocha Frappe', price: '$6.50', image: '/menu-5.png' },
   ];
 
@@ -617,7 +617,6 @@ function MenuSection() {
 
                     <div className="absolute bottom-0 left-0 right-0 p-6">
                       <h3 className="font-display text-2xl text-white font-bold mb-2">{item.name}</h3>
-                      <p className="text-brand-gold text-xl font-semibold">{item.price}</p>
                       <div className="mt-4 h-px bg-gradient-to-r from-brand-gold/0 via-brand-gold/60 to-brand-gold/0" />
                       <p className="mt-4 text-white/60 text-sm">Smooth, balanced, and crafted to match the Cozy Corner vibe.</p>
                     </div>
