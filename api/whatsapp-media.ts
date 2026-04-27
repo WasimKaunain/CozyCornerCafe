@@ -90,6 +90,43 @@ export async function renderVoucherCardPng(opts: { code: string; qrUrl: string; 
   ctx.fillText(`DEBUG RENDER OK • ${opts.code}`, 55, 85);
   ctx.restore();
 
+  // DEBUG: draw box outlines + labels so we can verify coordinates on Vercel.
+  ctx.save();
+  ctx.lineWidth = 6;
+
+  // Offer box
+  ctx.strokeStyle = "#00ff66";
+  ctx.strokeRect(OFFER_BOX.x, OFFER_BOX.y, OFFER_BOX.w, OFFER_BOX.h);
+  ctx.fillStyle = "#00ff66";
+  ctx.font = "700 26px ui-sans-serif, system-ui";
+  ctx.fillText("OFFER_BOX", OFFER_BOX.x + 8, OFFER_BOX.y - 10);
+
+  // QR box
+  ctx.strokeStyle = "#00d5ff";
+  ctx.strokeRect(QR_BOX.x, QR_BOX.y, QR_BOX.w, QR_BOX.h);
+  ctx.fillStyle = "#00d5ff";
+  ctx.fillText("QR_BOX", QR_BOX.x + 8, QR_BOX.y - 10);
+
+  // Voucher code box
+  ctx.strokeStyle = "#ffd400";
+  ctx.strokeRect(VOUCHER_BOX.x, VOUCHER_BOX.y, VOUCHER_BOX.w, VOUCHER_BOX.h);
+  ctx.fillStyle = "#ffd400";
+  ctx.fillText("VOUCHER_BOX", VOUCHER_BOX.x + 8, VOUCHER_BOX.y - 10);
+
+  // Crosshair at voucher center used for text placement
+  const dbgCx = Math.round(VOUCHER_BOX.x + VOUCHER_BOX.w / 2 - 10);
+  const dbgCy = Math.round(VOUCHER_BOX.y + VOUCHER_BOX.h / 2 + 14);
+  ctx.strokeStyle = "#ffd400";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(dbgCx - 20, dbgCy);
+  ctx.lineTo(dbgCx + 20, dbgCy);
+  ctx.moveTo(dbgCx, dbgCy - 20);
+  ctx.lineTo(dbgCx, dbgCy + 20);
+  ctx.stroke();
+
+  ctx.restore();
+
   // --- QR overlay ---
   const qrBuf = await fetchAsBuffer(opts.qrUrl);
   console.log("[voucher-render] qr downloaded", { bytes: qrBuf.byteLength });
