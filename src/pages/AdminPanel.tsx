@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { BarChart3, Camera, Shield, Users, Ticket, CheckCircle2, LogOut, ArrowLeft, X, Download, Search } from "lucide-react";
+import { BarChart3, Camera, Shield, Users, Ticket, CheckCircle2, LogOut, ArrowLeft, X } from "lucide-react";
 import AdminScanner from "./AdminScanner";
 
 type Stats = {
@@ -156,7 +156,6 @@ function AdminConsole() {
   const [modalSubtitle, setModalSubtitle] = useState<string | undefined>(undefined);
   const [modalBody, setModalBody] = useState<React.ReactNode>(null);
 
-  const [customerQuery, setCustomerQuery] = useState("");
   const [customerPage, setCustomerPage] = useState(1);
   const [customerLimit] = useState(25);
 
@@ -237,17 +236,15 @@ function AdminConsole() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  async function openCustomers(init?: { q?: string; page?: number }) {
+  async function openCustomers(init?: { page?: number }) {
     if (!authHeader) return;
 
-    const q = typeof init?.q === "string" ? init.q : customerQuery;
     const page = typeof init?.page === "number" ? init.page : customerPage;
 
-    setCustomerQuery(q);
     setCustomerPage(page);
 
     setModalTitle("Total people joined");
-    setModalSubtitle("Search by WhatsApp + pagination");
+    setModalSubtitle("Paginated customer list");
 
     const render = (opts: {
       loading: boolean;
@@ -259,54 +256,8 @@ function AdminConsole() {
       const rows = opts.rows ?? [];
       const totalPages = Math.max(1, Math.ceil(total / customerLimit));
 
-      const exportUrl = `/api/admin-console-customers?format=csv&q=${encodeURIComponent(q)}&page=${encodeURIComponent(
-        String(page)
-      )}&limit=${encodeURIComponent(String(customerLimit))}`;
-
       setModalBody(
         <div className="grid gap-4">
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto] items-end">
-            <label className="grid gap-2">
-              <span className="text-xs font-semibold tracking-wide text-white/70">Search by WhatsApp</span>
-              <div className="relative">
-                <input
-                  value={q}
-                  onChange={(e) => {
-                    setCustomerQuery(e.target.value);
-                  }}
-                  placeholder="e.g. +9665... or 9665..."
-                  className="h-12 w-full rounded-2xl border border-white/12 bg-black/20 pl-11 pr-4 text-white placeholder:text-white/35 outline-none focus:border-brand-gold/60"
-                />
-                <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/60">
-                  <Search className="h-4 w-4" />
-                </div>
-              </div>
-            </label>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => openCustomers({ q: customerQuery, page: 1 })}
-                className="h-12 inline-flex items-center justify-center gap-2 rounded-2xl border border-white/12 bg-black/20 px-4 text-sm font-semibold text-white/85 hover:bg-black/30"
-              >
-                Search
-              </button>
-              <a
-                href={exportUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="h-12 inline-flex items-center justify-center gap-2 rounded-2xl bg-brand-gold px-4 text-sm font-semibold text-brand-navy hover:brightness-110"
-                onClick={(e) => {
-                  if (!authHeader?.Authorization) {
-                    e.preventDefault();
-                  }
-                }}
-              >
-                <Download className="h-4 w-4" />
-                CSV
-              </a>
-            </div>
-          </div>
-
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
             <div className="text-xs text-white/60">
               Showing page <span className="text-white/80 font-semibold">{page}</span> of{" "}
@@ -315,14 +266,14 @@ function AdminConsole() {
             <div className="flex gap-2">
               <button
                 disabled={page <= 1}
-                onClick={() => openCustomers({ q, page: Math.max(1, page - 1) })}
+                onClick={() => openCustomers({ page: Math.max(1, page - 1) })}
                 className="h-10 rounded-xl border border-white/12 bg-black/20 px-3 text-xs font-semibold text-white/85 disabled:opacity-60 hover:bg-black/30"
               >
                 Prev
               </button>
               <button
                 disabled={page >= totalPages}
-                onClick={() => openCustomers({ q, page: Math.min(totalPages, page + 1) })}
+                onClick={() => openCustomers({ page: Math.min(totalPages, page + 1) })}
                 className="h-10 rounded-xl border border-white/12 bg-black/20 px-3 text-xs font-semibold text-white/85 disabled:opacity-60 hover:bg-black/30"
               >
                 Next
@@ -355,9 +306,9 @@ function AdminConsole() {
     setModalOpen(true);
 
     try {
-      const url = `/api/admin-console-customers?q=${encodeURIComponent(q)}&page=${encodeURIComponent(
-        String(page)
-      )}&limit=${encodeURIComponent(String(customerLimit))}`;
+      const url = `/api/admin-console-customers?page=${encodeURIComponent(String(page))}&limit=${encodeURIComponent(
+        String(customerLimit)
+      )}`;
       const r = await fetch(url, { headers: { ...(authHeader ?? {}) } });
       const data = await r.json();
 
@@ -384,24 +335,7 @@ function AdminConsole() {
     setModalTitle(title);
     setModalSubtitle("Grouped by Offer ID");
 
-    const csvUrl = `${endpoint}?format=csv`;
-
-    setModalBody(
-      <div className="grid gap-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-sm text-white/70">Loading...</div>
-          <a
-            href={csvUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy hover:brightness-110"
-          >
-            CSV
-          </a>
-        </div>
-      </div>
-    );
-
+    setModalBody(<div className="text-sm text-white/70">Loading...</div>);
     setModalOpen(true);
 
     try {
@@ -421,38 +355,25 @@ function AdminConsole() {
 
       const groups: OfferGroupRow[] = Array.isArray(data?.groups) ? data.groups : [];
       setModalBody(
-        <div className="grid gap-4">
-          <div className="flex items-center justify-end">
-            <a
-              href={csvUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-brand-gold px-4 py-2 text-sm font-semibold text-brand-navy hover:brightness-110"
-            >
-              CSV
-            </a>
-          </div>
-
-          <div className="grid gap-2">
-            {groups.length === 0 ? (
-              <div className="text-sm text-white/70">No data.</div>
-            ) : (
-              groups.map((g) => (
-                <div
-                  key={String(g.offerId) + String(g.offerTitle ?? "")}
-                  className="rounded-2xl border border-white/10 bg-black/20 p-4"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-white/90 truncate">Offer {g.offerId ?? "—"}</div>
-                      {g.offerTitle ? <div className="mt-1 text-xs text-white/55 truncate">{g.offerTitle}</div> : null}
-                    </div>
-                    <div className="text-sm font-black text-brand-gold">{g.count}</div>
+        <div className="grid gap-2">
+          {groups.length === 0 ? (
+            <div className="text-sm text-white/70">No data.</div>
+          ) : (
+            groups.map((g) => (
+              <div
+                key={String(g.offerId) + String(g.offerTitle ?? "")}
+                className="rounded-2xl border border-white/10 bg-black/20 p-4"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-white/90 truncate">Offer {g.offerId ?? "—"}</div>
+                    {g.offerTitle ? <div className="mt-1 text-xs text-white/55 truncate">{g.offerTitle}</div> : null}
                   </div>
+                  <div className="text-sm font-black text-brand-gold">{g.count}</div>
                 </div>
-              ))
-            )}
-          </div>
+              </div>
+            ))
+          )}
         </div>
       );
     } catch {
@@ -555,7 +476,7 @@ function AdminConsole() {
               title={`Total people joined: ${stats?.customers ?? "—"}`}
               desc="Tap to view list of customers"
               icon={<Users className="h-5 w-5" />}
-              onClick={() => openCustomers({ q: customerQuery, page: 1 })}
+              onClick={() => openCustomers({ page: 1 })}
             />
 
             <GlassCard
