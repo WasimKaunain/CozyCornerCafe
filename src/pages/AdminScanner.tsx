@@ -265,7 +265,7 @@ export default function AdminScanner() {
                 message: "Check result",
               });
             }
-          },,
+          },
           () => {
             // ignore scan errors
           }
