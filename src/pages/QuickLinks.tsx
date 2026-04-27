@@ -10,6 +10,8 @@ function buildWaText(opts: {
   code: string;
   validityText: string;
   offerCode?: number;
+  offerTitle?: string;
+  offerDescription?: string;
   qrUrl?: string | null;
 }) {
   // Keep instructions (user asked not to delete instructions)
@@ -17,6 +19,9 @@ function buildWaText(opts: {
     `Hi ${opts.name}! Welcome to Cozy Corner Cafe.\n\n` +
     `Your Grand Opening Voucher Code: ${opts.code}\n` +
     (opts.offerCode ? `Offer Code: ${opts.offerCode}\n` : "") +
+    (opts.offerTitle
+      ? `Offer: ${opts.offerTitle}${opts.offerDescription ? `\n${opts.offerDescription}` : ""}\n`
+      : "") +
     `${opts.validityText}\n\n` +
     `Instructions:\n` +
     `1) Show this voucher code at the cafe counter.\n` +
@@ -98,6 +103,12 @@ function validateWa(input: string): { ok: true; value: string } | { ok: false; e
   return { ok: true, value };
 }
 
+type ManualCheckResult =
+  | { kind: "idle" }
+  | { kind: "loading" }
+  | { kind: "ok"; title: string; detail?: string }
+  | { kind: "fail"; title: string; detail?: string };
+
 export default function QuickLinks() {
   const [bannerOpen, setBannerOpen] = useState(true);
   const [step, setStep] = useState<"start" | "form" | "result">("start");
@@ -153,6 +164,8 @@ export default function QuickLinks() {
       code: created.voucher.code,
       validityText: VALIDITY_TEXT,
       offerCode: created.voucher.offer?.id,
+      offerTitle: created.voucher.offer?.title,
+      offerDescription: created.voucher.offer?.description,
       qrUrl,
     });
   }, [created, qrUrl]);
@@ -259,12 +272,56 @@ export default function QuickLinks() {
       code: created.voucher.code,
       validityText: VALIDITY_TEXT,
       offerCode: created.voucher.offer?.id,
+      offerTitle: created.voucher.offer?.title,
+      offerDescription: created.voucher.offer?.description,
       qrUrl,
     });
 
     const digits = created.customer.whatsapp.replace(/\s+/g, "").replace(/^\+/, "");
     const waTextUrl = `https://wa.me/${encodeURIComponent(digits)}?text=${encodeURIComponent(msg)}`;
     window.open(waTextUrl, "_blank", "noopener,noreferrer");
+  }
+
+  // Manual voucher code entry (always enabled)
+  const [manualCode, setManualCode] = useState("");
+  const [manualResult, setManualResult] = useState<ManualCheckResult>({ kind: "idle" });
+
+  async function manualValidateVoucher() {
+    const code = manualCode.trim();
+    if (!code) {
+      setManualResult({ kind: "fail", title: "Enter a voucher code", detail: "Type the code and try again." });
+      return;
+    }
+
+    setManualResult({ kind: "loading" });
+    try {
+      const r = await fetch(`/api/voucher-qr?code=${encodeURIComponent(code)}`);
+      const data = await r.json().catch(() => ({}));
+
+      if (!r.ok) {
+        setManualResult({
+          kind: "fail",
+          title: "Invalid voucher code",
+          detail: data?.error ?? "This code was not found.",
+        });
+        return;
+      }
+
+      // If we can generate QR for it, it's a syntactically valid code; redemption status is checked at counter.
+      setManualResult({
+        kind: "ok",
+        title: "Voucher code accepted",
+        detail: "Please show this code/QR at the counter for validation & redemption.",
+      });
+
+      if (data?.qrUrl) setQrUrl(data.qrUrl);
+    } catch {
+      setManualResult({
+        kind: "fail",
+        title: "Network error",
+        detail: "Please try again.",
+      });
+    }
   }
 
   return (
@@ -782,104 +839,61 @@ export default function QuickLinks() {
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
-                )}
 
-                {step === "result" && created && (
-                  <div className="mt-6">
-                    <div className="rounded-2xl border border-white/12 bg-black/20 px-4 py-3 text-sm text-white/70">
-                      Voucher generated. Use the popup window to view and share your voucher.
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+                      {/* Manual code entry (always available) */}
+                      <div className="mt-6 rounded-3xl border border-white/12 bg-black/20 p-5 sm:p-6">
+                        <div className="text-xs font-semibold tracking-wide text-white/70">MANUAL VOUCHER CODE</div>
+                        <div className="mt-2 text-sm text-white/65">
+                          If you already have a voucher code, enter it here to regenerate the QR and keep it safe.
+                        </div>
 
-            {/* Right: links */}
-            <div className="rounded-[28px] border border-white/12 bg-white/5 backdrop-blur-2xl shadow-[0_24px_80px_rgba(0,0,0,0.35)] overflow-hidden">
-              <div className="p-6 sm:p-7">
-                <div className="flex items-center justify-between">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-black/20 px-3 py-1.5 text-xs text-white/70">
-                    <Sparkles className="h-4 w-4 text-brand-gold" />
-                    Quick Links
-                  </div>
-                </div>
+                        <div className="mt-4 grid gap-3">
+                          <label className="grid gap-2">
+                            <span className="text-xs font-semibold tracking-wide text-white/70">Voucher Code</span>
+                            <input
+                              value={manualCode}
+                              onChange={(e) => setManualCode(e.target.value)}
+                              placeholder="e.g. A1B2C"
+                              className="h-12 rounded-2xl border border-white/12 bg-black/30 px-4 font-mono text-white placeholder:text-white/35 outline-none focus:border-brand-gold/60 focus:ring-2 focus:ring-brand-gold/20"
+                            />
+                          </label>
 
-                <div className="mt-6 grid gap-4">
-                  <a
-                    href="https://www.google.com/maps/place/Cozy+Corner+Cafe/@24.6768574,46.6971651,17z/data=!3m1!4b1!4m6!3m5!1s0x3e2f05140d4f4955:0xbf0491937c4649e7!8m2!3d24.6768525!4d46.69974!16s%2Fg%2F11n48rn5vn?entry=ttu&g_ep=EgoyMDI2MDQyMi4wIKXMDSoASAFQAw%3D%3D"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:scale-[1.01] active:scale-[0.98]"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-black/20">
-                        <FaMapMarkerAlt className="h-6 w-6 text-[#EA4335]" aria-hidden="true" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold text-white/90">Our Location</div>
-                        <div className="mt-1 text-xs text-white/55">Find us at Cozy Corner Cafe, Riyadh</div>
-                      </div>
-                    </div>
-                  </a>
+                          <button
+                            type="button"
+                            onClick={manualValidateVoucher}
+                            disabled={manualResult.kind === "loading"}
+                            className="w-full rounded-2xl bg-white/10 border border-white/15 text-white px-5 py-3 font-semibold transition hover:bg-white/15 disabled:opacity-60"
+                          >
+                            {manualResult.kind === "loading" ? "Checking..." : "Generate QR / Check Code"}
+                          </button>
 
-                  <a
-                    href="https://wa.me/966583236711"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:scale-[1.01] active:scale-[0.98]"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-black/20">
-                        <FaWhatsapp className="h-6 w-6 text-[#25D366]" aria-hidden="true" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold text-white/90">Chat with Us</div>
-                        <div className="mt-1 text-xs text-white/55">Have questions? We're here to help!</div>
-                      </div>
-                    </div>
-                  </a>
+                          {manualResult.kind === "ok" ? (
+                            <div className="rounded-2xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
+                              <div className="font-semibold">{manualResult.title}</div>
+                              {manualResult.detail ? (
+                                <div className="mt-1 text-[12px] text-emerald-100/80">{manualResult.detail}</div>
+                              ) : null}
+                            </div>
+                          ) : null}
 
-                  <a
-                    href="https://www.instagram.com/cozycornersa.cafe/?hl=en"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:scale-[1.01] active:scale-[0.98]"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-black/20">
-                        <FaInstagram className="h-6 w-6 text-[#E1306C]" aria-hidden="true" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold text-white/90">Follow us on Instagram</div>
-                        <div className="mt-1 text-xs text-white/55">Check out our latest updates and promotions</div>
-                      </div>
-                    </div>
-                  </a>
+                          {manualResult.kind === "fail" ? (
+                            <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                              <div className="font-semibold">{manualResult.title}</div>
+                              {manualResult.detail ? (
+                                <div className="mt-1 text-[12px] text-red-200/85">{manualResult.detail}</div>
+                              ) : null}
+                            </div>
+                          ) : null}
 
-                  <a
-                    href="https://www.facebook.com/profile.php?id=61574238234936"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:scale-[1.01] active:scale-[0.98]"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-black/20">
-                        <FaFacebook className="h-6 w-6 text-[#1877F2]" aria-hidden="true" />
+                          {qrUrl ? (
+                            <div className="mt-1 rounded-2xl border border-white/10 bg-white/5 p-3 grid place-items-center">
+                              <img src={qrUrl} alt="Voucher QR" className="w-full max-w-[220px] h-auto rounded-xl" />
+                            </div>
+                          ) : null}
+
+                          <div className="text-[11px] text-white/55 leading-relaxed">
+                            Note: Final validation & redemption is done by staff at the counter.
+                          </div>
+                        </div>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold text-white/90">Like us on Facebook</div>
-                        <div className="mt-1 text-xs text-white/55">Join our community and stay updated</div>
-                      </div>
-                    </div>
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+               

@@ -105,19 +105,11 @@ export default function AdminScanner() {
   // Prevent repeated scans while validating/redeeming
   const scanLockRef = useRef(false);
 
-  // UI state for loading + modal result
+  // UI state for loading overlay (result is shown via popup)
   const [scanStatus, setScanStatus] = useState<
     | { state: "idle" }
     | { state: "loading"; code: string }
-    | { state: "result"; code: string; ok: boolean; title: string; message: string }
   >({ state: "idle" });
-
-  const isBusy = scanStatus.state === "loading" || scanStatus.state === "result";
-
-  const closeResult = useCallback(() => {
-    scanLockRef.current = false;
-    setScanStatus({ state: "idle" });
-  }, []);
 
   const authHeader = useMemo(() => {
     if (!token) return undefined;
@@ -162,20 +154,38 @@ export default function AdminScanner() {
     setPopupOpen(true);
   }
 
+  const closePopupAndUnlock = useCallback(() => {
+    setPopupOpen(false);
+    scanLockRef.current = false;
+    setScanStatus({ state: "idle" });
+  }, []);
+
   async function validateAndRedeem(scannedText: string) {
     if (busy) return;
     setBusy(true);
 
     try {
-      setLastCode(scannedText);
+      const normalized = String(scannedText ?? "").trim();
+      setLastCode(normalized);
 
       const vr = await fetch("/api/voucher-validate", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(authHeader ?? {}) },
-        body: JSON.stringify({ code: scannedText }),
+        body: JSON.stringify({ code: normalized }),
       });
 
-      const vdata = (await vr.json()) as ValidateResp;
+      const vdata = (await vr.json()) as any as ValidateResp;
+
+      // Auth issues: force re-login
+      if (vr.status === 401 && (vdata as any)?.error) {
+        const err = String((vdata as any).error);
+        if (err.toLowerCase().includes("token expired") || err.toLowerCase().includes("missing auth")) {
+          setToken(null);
+          setStoredToken(null);
+          openPopup("fail", "Session expired", "Please login again with PIN.");
+          return;
+        }
+      }
 
       if (!vr.ok || !(vdata as any).ok) {
         vibrate([120, 80, 120]);
@@ -183,23 +193,33 @@ export default function AdminScanner() {
         return;
       }
 
-      if (vdata.status !== "VALID") {
+      if ((vdata as any).status !== "VALID") {
         vibrate([120, 80, 120]);
+        const status = (vdata as any).status;
         const msg =
-          vdata.status === "ALREADY_USED"
-            ? `Already used${vdata.voucher?.usedAt ? ` at ${new Date(vdata.voucher.usedAt).toLocaleString()}` : ""}`
+          status === "ALREADY_USED"
+            ? `Already used${(vdata as any).voucher?.usedAt ? ` at ${new Date((vdata as any).voucher.usedAt).toLocaleString()}` : ""}`
             : "Voucher expired";
         openPopup("fail", "Voucher not valid", msg);
         return;
       }
 
-      // redeem
       const rr = await fetch("/api/voucher-redeem", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(authHeader ?? {}) },
-        body: JSON.stringify({ code: scannedText }),
+        body: JSON.stringify({ code: normalized }),
       });
-      const rdata = (await rr.json()) as RedeemResp;
+      const rdata = (await rr.json()) as any as RedeemResp;
+
+      if (rr.status === 401 && (rdata as any)?.error) {
+        const err = String((rdata as any).error);
+        if (err.toLowerCase().includes("token expired") || err.toLowerCase().includes("missing auth")) {
+          setToken(null);
+          setStoredToken(null);
+          openPopup("fail", "Session expired", "Please login again with PIN.");
+          return;
+        }
+      }
 
       if (rr.ok && (rdata as any).ok && (rdata as any).status === "REDEEMED") {
         vibrate([40, 40, 120]);
@@ -238,33 +258,28 @@ export default function AdminScanner() {
         const html5 = new Html5Qrcode(scannerId);
         html5Ref.current = html5;
 
-        // Prefer back camera
         await html5.start(
           { facingMode: "environment" },
           { fps: 10, qrbox: { width: 260, height: 260 }, aspectRatio: 1.0 },
           async (decodedText) => {
             if (cancelled) return;
 
-            // 🚫 prevent multiple scans
+            const txt = String(decodedText ?? "").trim();
+            if (!txt) return;
+
+            // Ignore scans while popup open/loading
+            if (popupOpen) return;
             if (scanLockRef.current) return;
 
+            // lock + show loading
             scanLockRef.current = true;
+            setScanStatus({ state: "loading", code: txt });
 
-            // show loading overlay
-            setScanStatus({ state: "loading", code: decodedText });
+            // Perform validation/redeem which will open a popup.
+            await validateAndRedeem(txt);
 
-            try {
-              await validateAndRedeem(decodedText);
-            } finally {
-              // after API completes → show result state
-              setScanStatus({
-                state: "result",
-                code: decodedText,
-                ok: true,
-                title: "Processed",
-                message: "Check result",
-              });
-            }
+            // Ensure loading overlay goes away once popup is shown.
+            setScanStatus({ state: "idle" });
           },
           () => {
             // ignore scan errors
@@ -272,6 +287,8 @@ export default function AdminScanner() {
         );
       } catch (e: any) {
         setCameraError(e?.message ?? "Failed to access camera");
+        scanLockRef.current = false;
+        setScanStatus({ state: "idle" });
       }
     }
 
@@ -291,7 +308,7 @@ export default function AdminScanner() {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, popupOpen]);
 
   return (
     <div className="min-h-screen bg-[#0b102e] text-white">
@@ -364,9 +381,11 @@ export default function AdminScanner() {
             </div>
 
             <div className="rounded-3xl border border-white/12 bg-white/5 p-5">
-              <div className="text-sm font-semibold">Manual entry</div>
-              <p className="mt-1 text-xs text-white/55">If camera fails, paste voucher code and redeem.</p>
-              <ManualRedeem onRedeem={validateAndRedeem} disabled={busy || scanLockRef.current} />
+              <div className="text-sm font-semibold">Manual entry (always available)</div>
+              <p className="mt-1 text-xs text-white/55">
+                Type/paste a voucher code to validate & redeem. Use this anytime (even if camera works).
+              </p>
+              <ManualRedeem onRedeem={validateAndRedeem} disabled={busy || scanStatus.state === "loading"} />
             </div>
           </div>
         )}
@@ -385,23 +404,11 @@ export default function AdminScanner() {
       {/* Result popup */}
       {popupOpen ? (
         <div className="fixed inset-0 z-[200] grid place-items-center px-4">
-          <button
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => {
-              setPopupOpen(false);
-              scanLockRef.current = false;
-              setScanStatus({ state: "idle" });
-            }}
-            aria-label="Close popup"
-          />
+          <button className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closePopupAndUnlock} aria-label="Close popup" />
 
           <div className="relative w-full max-w-md rounded-3xl border border-white/12 bg-[#0b102e]/95 p-6 shadow-[0_40px_120px_rgba(0,0,0,0.6)]">
             <button
-              onClick={() => {
-                setPopupOpen(false);
-                scanLockRef.current = false;
-                setScanStatus({ state: "idle" });
-              }}
+              onClick={closePopupAndUnlock}
               className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-black/20 text-white/80 hover:bg-black/30"
               aria-label="Close"
             >
@@ -421,10 +428,7 @@ export default function AdminScanner() {
             </div>
 
             <div className="mt-5 flex justify-end">
-              <button
-                onClick={() => setPopupOpen(false)}
-                className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15"
-              >
+              <button onClick={closePopupAndUnlock} className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">
                 Close
               </button>
             </div>
