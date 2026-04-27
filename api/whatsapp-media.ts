@@ -193,6 +193,13 @@ export async function renderVoucherCardPng(opts: { code: string; qrUrl: string; 
     }
 
     ctx.save();
+
+    // Helpful background so text can't "disappear" on Vercel due to template colors / font fallbacks.
+    ctx.globalAlpha = 0.92;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(OFFER_BOX.x + 6, OFFER_BOX.y + 6, OFFER_BOX.w - 12, OFFER_BOX.h - 12);
+    ctx.globalAlpha = 1;
+
     ctx.fillStyle = offerColor;
     ctx.textBaseline = "alphabetic";
 
@@ -221,6 +228,14 @@ export async function renderVoucherCardPng(opts: { code: string; qrUrl: string; 
 
     const lineH = Math.round(fontPx * lineHeightMult);
     const totalH = (1 + lines.length) * lineH;
+
+    console.log("[voucher-render] offer metrics", {
+      fontPx,
+      maxWidth,
+      maxHeight,
+      lines: lines.length,
+      totalH,
+    });
 
     // vertically center inside safe area
     const startY = Math.round(safeY1 + (maxHeight - totalH) / 2 + fontPx);
@@ -251,6 +266,13 @@ export async function renderVoucherCardPng(opts: { code: string; qrUrl: string; 
     const cy = Math.round(VOUCHER_BOX.y + VOUCHER_BOX.h / 2 + 14);
 
     ctx.save();
+
+    // Background panel so white code is always visible even if the template box isn't dark on Vercel.
+    ctx.globalAlpha = 0.75;
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(VOUCHER_BOX.x + 8, VOUCHER_BOX.y + 8, VOUCHER_BOX.w - 16, VOUCHER_BOX.h - 16);
+    ctx.globalAlpha = 1;
+
     ctx.fillStyle = color;
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
@@ -262,6 +284,12 @@ export async function renderVoucherCardPng(opts: { code: string; qrUrl: string; 
       ctx.font = `${fontWeight} ${finalPx}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
       if (ctx.measureText(opts.code).width <= VOUCHER_BOX.w - 20) break;
     }
+
+    console.log("[voucher-render] code metrics", {
+      finalPx,
+      measuredW: ctx.measureText(opts.code).width,
+      boxW: VOUCHER_BOX.w,
+    });
 
     // Slight vertical offset (+20)
     const baselineY = Math.round(cy + finalPx * 0.35 + 20);
