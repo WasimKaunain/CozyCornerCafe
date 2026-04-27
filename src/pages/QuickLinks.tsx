@@ -81,26 +81,74 @@ function normalizeWa(input: string) {
     ? "+" + raw.slice(1).replace(/[^0-9]/g, "")
     : raw.replace(/[^0-9]/g, "");
 
-  // If user typed local-style 05xxxxxxxx, keep as-is (we won't assume country).
   return cleaned;
 }
 
-function validateWa(input: string): { ok: true; value: string } | { ok: false; error: string } {
-  const n = normalizeWa(input);
+function normalizeWaStrict(input: string) {
+  const raw = String(input ?? "").trim();
+  if (!raw) return "";
+
+  const cleaned = raw.startsWith("+")
+    ? "+" + raw.slice(1).replace(/[^0-9]/g, "")
+    : raw.replace(/[^0-9]/g, "");
+
+  const withPlus = cleaned.startsWith("+") ? cleaned : `+${cleaned}`;
+
+  // +91 + 10 digits
+  if (withPlus.startsWith("+91")) {
+    const rest = withPlus.slice(3);
+    if (/^[0-9]{10}$/.test(rest)) return `+91${rest}`;
+    return withPlus;
+  }
+
+  // +966 + 9 digits OR +966 + 10 digits starting with 0
+  if (withPlus.startsWith("+966")) {
+    const rest = withPlus.slice(4);
+    if (/^[0-9]{9}$/.test(rest)) return `+966${rest}`;
+    if (/^0[0-9]{9}$/.test(rest)) return `+966${rest}`;
+    return withPlus;
+  }
+
+  // If user omitted '+', still try strict ISD matching
+  if (cleaned.startsWith("91")) {
+    const rest = cleaned.slice(2);
+    if (/^[0-9]{10}$/.test(rest)) return `+91${rest}`;
+  }
+  if (cleaned.startsWith("966")) {
+    const rest = cleaned.slice(3);
+    if (/^[0-9]{9}$/.test(rest)) return `+966${rest}`;
+    if (/^0[0-9]{9}$/.test(rest)) return `+966${rest}`;
+  }
+
+  return withPlus;
+}
+
+function validateWa(input: string): { ok: true; value: string } | { ok: false, error: string } {
+  const n = normalizeWaStrict(input);
 
   if (!n) return { ok: false, error: "Enter your WhatsApp number." };
 
-  // Accept international E.164-like:
-  // +<country><number> (8..15 digits total after +)
-  // Also accept digits without + (8..15) and we will add +
-  const digits = n.startsWith("+") ? n.slice(1) : n;
-
-  if (!/^\d{8,15}$/.test(digits)) {
-    return { ok: false, error: "Invalid WhatsApp number. Please enter a valid international number." };
+  if (n.startsWith("+91")) {
+    const rest = n.slice(3);
+    if (!/^[0-9]{10}$/.test(rest)) {
+      return { ok: false, error: "India numbers must be +91 followed by 10 digits." };
+    }
+    return { ok: true, value: `+91${rest}` };
   }
 
-  const value = n.startsWith("+") ? n : "+" + n;
-  return { ok: true, value };
+  if (n.startsWith("+966")) {
+    const rest = n.slice(4);
+    const ok = /^[0-9]{9}$/.test(rest) || /^0[0-9]{9}$/.test(rest);
+    if (!ok) {
+      return {
+        ok: false,
+        error: "Saudi numbers must be +966 followed by 9 digits (e.g. +9665XXXXXXXX) or +9660 followed by 9 digits (e.g. +96605XXXXXXXX).",
+      };
+    }
+    return { ok: true, value: `+966${rest}` };
+  }
+
+  return { ok: false, error: "Only +91 (India) and +966 (Saudi) WhatsApp numbers are supported." };
 }
 
 export default function QuickLinks() {

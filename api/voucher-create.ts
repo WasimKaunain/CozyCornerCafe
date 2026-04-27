@@ -117,11 +117,76 @@ const bodySchema = z.object({
   name: z.string().trim().min(2).max(80),
   whatsapp: z
     .string()
-    .trim()
-    .min(8)
-    .max(20)
-    .regex(/^\+?[0-9]{8,20}$/, "Invalid phone number"),
+    .transform((v) => {
+      try {
+        return normalizeWhatsappStrict(v);
+      } catch {
+        return String(v ?? "");
+      }
+    })
+    .refine((v) => {
+      try {
+        normalizeWhatsappStrict(v);
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Invalid WhatsApp number. Use +91XXXXXXXXXX or +966XXXXXXXXX / +9660XXXXXXXXX"),
 });
+
+/**
+ * Strict WhatsApp normalization:
+ * - Allow India and Saudi only
+ * - If user omits '+', add it for 91/966 numbers
+ * - +91 must be exactly 10 digits after the country code
+ * - +966 can be:
+ *    - 9 digits after country code (e.g. +9665XXXXXXXX)
+ *    - OR 10 digits if the first digit is 0 (e.g. +96605XXXXXXXX)
+ */
+function normalizeWhatsappStrict(input: string) {
+  const raw = String(input ?? "").trim();
+  if (!raw) throw new Error("INVALID_WA");
+
+  // Keep digits and an optional leading +
+  const cleaned = raw.startsWith("+")
+    ? "+" + raw.slice(1).replace(/[^0-9]/g, "")
+    : raw.replace(/[^0-9]/g, "");
+
+  // Add '+' if missing
+  const withPlus = cleaned.startsWith("+") ? cleaned : `+${cleaned}`;
+
+  // India
+  if (withPlus.startsWith("+91")) {
+    const rest = withPlus.slice(3);
+    if (!/^[0-9]{10}$/.test(rest)) throw new Error("INVALID_WA");
+    return `+91${rest}`;
+  }
+
+  // Saudi
+  if (withPlus.startsWith("+966")) {
+    const rest = withPlus.slice(4);
+    if (!/^[0-9]{9,10}$/.test(rest)) throw new Error("INVALID_WA");
+    if (rest.length === 9) return `+966${rest}`;
+    // length === 10
+    if (!rest.startsWith("0")) throw new Error("INVALID_WA");
+    return `+966${rest}`;
+  }
+
+  // If user typed without '+', do a last attempt for leading ISD codes
+  if (cleaned.startsWith("91")) {
+    const rest = cleaned.slice(2);
+    if (!/^[0-9]{10}$/.test(rest)) throw new Error("INVALID_WA");
+    return `+91${rest}`;
+  }
+  if (cleaned.startsWith("966")) {
+    const rest = cleaned.slice(3);
+    if (!/^[0-9]{9,10}$/.test(rest)) throw new Error("INVALID_WA");
+    if (rest.length === 10 && !rest.startsWith("0")) throw new Error("INVALID_WA");
+    return `+966${rest}`;
+  }
+
+  throw new Error("INVALID_WA");
+}
 
 const nano = customAlphabet("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 5);
 
@@ -158,6 +223,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const { name, whatsapp } = parsed.data;
+
+    // `whatsapp` is already normalized by schema
 
     const pool = getPool();
 
