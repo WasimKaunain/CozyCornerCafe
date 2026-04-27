@@ -90,6 +90,18 @@ export async function renderVoucherCardPng(opts: { code: string; qrUrl: string; 
   ctx.fillText(`DEBUG RENDER OK • ${opts.code}`, 55, 85);
   ctx.restore();
 
+  // --- TEXT PROBE (temporary): prove whether fillText works at all on Vercel ---
+  // If you see these strings, canvas text rendering works and the issue is font/coordinates.
+  // If you DON'T see these, text rendering itself is broken in the runtime.
+  ctx.save();
+  ctx.fillStyle = "#000000";
+  ctx.font = "800 44px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.fillText("HELLO_TEXT", OFFER_BOX.x + 16, OFFER_BOX.y + 16);
+  ctx.fillText("HELLO_CODE", VOUCHER_BOX.x + 16, VOUCHER_BOX.y + 16);
+  ctx.restore();
+
   // DEBUG: draw box outlines + labels so we can verify coordinates on Vercel.
   ctx.save();
   ctx.lineWidth = 6;
@@ -147,11 +159,11 @@ export async function renderVoucherCardPng(opts: { code: string; qrUrl: string; 
   // --- Offer text overlay ---
   if (opts.offerText) {
     const offerColor = "#0b1a3a";
-    const offerWeight = 700;
+    const offerWeight = 800;
 
     // Rules: slightly larger font, line height 1.35, wrap, max 6–8 lines
     const maxLines = 8;
-    const minFont = 26;
+    const minFont = 22;
     const maxFont = 30;
     const lineHeightMult = 1.35;
 
@@ -170,8 +182,8 @@ export async function renderVoucherCardPng(opts: { code: string; qrUrl: string; 
     const words = normalized.split(" ");
 
     function setFont(px: number) {
-      // Use a nicer serif stack (matches your Google fonts on the web page)
-      ctx.font = `${offerWeight} ${px}px "Playfair Display", "Cinzel", ui-serif, Georgia, "Times New Roman", serif`;
+      // IMPORTANT: stick to system fonts in serverless (Google fonts are not installed in Vercel runtime).
+      ctx.font = `${offerWeight} ${px}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
     }
 
     function wrapToLines(px: number) {
@@ -201,9 +213,8 @@ export async function renderVoucherCardPng(opts: { code: string; qrUrl: string; 
     ctx.globalAlpha = 1;
 
     ctx.fillStyle = offerColor;
-    ctx.textBaseline = "alphabetic";
+    ctx.textBaseline = "top";
 
-    // Prefer 26px, fallback to 25/24 if height doesn't fit
     let fontPx = maxFont;
     let lines = wrapToLines(fontPx);
 
@@ -215,7 +226,6 @@ export async function renderVoucherCardPng(opts: { code: string; qrUrl: string; 
       if (neededH <= maxHeight) break;
     }
 
-    // Enforce max line count, truncate last line with ellipsis if still too many
     if (lines.length > maxLines) {
       lines = lines.slice(0, maxLines);
       let last = lines[lines.length - 1];
@@ -235,12 +245,15 @@ export async function renderVoucherCardPng(opts: { code: string; qrUrl: string; 
       maxHeight,
       lines: lines.length,
       totalH,
+      headerText,
+      offerTextLen: normalized.length,
     });
 
     // vertically center inside safe area
-    const startY = Math.round(safeY1 + (maxHeight - totalH) / 2 + fontPx);
+    const startY = Math.round(safeY1 + (maxHeight - totalH) / 2);
 
     setFont(fontPx);
+
     // Header centered
     ctx.textAlign = "center";
     ctx.fillText(headerText, Math.round((safeX1 + safeX2) / 2), startY);
@@ -259,7 +272,7 @@ export async function renderVoucherCardPng(opts: { code: string; qrUrl: string; 
   {
     const color = "#ffffff";
     const fontPx = 36; // tuned for 260x90 box
-    const fontWeight = 800;
+    const fontWeight = 900;
 
     // Shift slightly bottom-left so it doesn't drift to the top-right edge of the box
     const cx = Math.round(VOUCHER_BOX.x + VOUCHER_BOX.w / 2 - 10);
@@ -275,12 +288,11 @@ export async function renderVoucherCardPng(opts: { code: string; qrUrl: string; 
 
     ctx.fillStyle = color;
     ctx.textAlign = "center";
-    ctx.textBaseline = "alphabetic";
-    ctx.font = `${fontWeight} ${fontPx}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
+    ctx.textBaseline = "middle";
 
     // Ensure it fits width (shrink down if needed)
     let finalPx = fontPx;
-    for (; finalPx >= 26; finalPx--) {
+    for (; finalPx >= 22; finalPx--) {
       ctx.font = `${fontWeight} ${finalPx}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`;
       if (ctx.measureText(opts.code).width <= VOUCHER_BOX.w - 20) break;
     }
@@ -289,11 +301,10 @@ export async function renderVoucherCardPng(opts: { code: string; qrUrl: string; 
       finalPx,
       measuredW: ctx.measureText(opts.code).width,
       boxW: VOUCHER_BOX.w,
+      codeLen: opts.code.length,
     });
 
-    // Slight vertical offset (+20)
-    const baselineY = Math.round(cy + finalPx * 0.35 + 20);
-    ctx.fillText(opts.code, cx, baselineY);
+    ctx.fillText(opts.code, cx, cy);
     ctx.restore();
   }
 
