@@ -1,13 +1,8 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import confetti from "canvas-confetti";
 import { X, Sparkles, Ticket, ShieldCheck, CalendarDays } from "lucide-react";
 
 const VALIDITY_TEXT = "Valid till 3rd May 11:59 PM";
-
-function formatWaDigits(input: string) {
-  return input.replace(/\s+/g, "");
-}
 
 function buildWaText(opts: {
   name: string;
@@ -95,10 +90,11 @@ export default function QuickLinks() {
   const [name, setName] = useState("");
   const [whatsapp, setWhatsapp] = useState("+966");
 
-  const [loading, setLoading] = useState(false);
+  // Voucher generation temporarily disabled
   const [error, setError] = useState<string | null>(null);
-  const [waUsedError, setWaUsedError] = useState<string | null>(null);
+  const [waUsedError] = useState<string | null>(null);
 
+  // Keep for UI compatibility, but they won't be set while generation is disabled
   const [created, setCreated] = useState<CreatedVoucher | null>(null);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [waUrl, setWaUrl] = useState<string | null>(null);
@@ -114,23 +110,6 @@ export default function QuickLinks() {
 
   const [voucherModalOpen, setVoucherModalOpen] = useState(false);
   const modalCloseBtnRef = useRef<HTMLButtonElement | null>(null);
-
-  const fireConfetti = () => {
-    const defaults = { origin: { y: 0.7 } };
-
-    // big, premium burst (multiple waves)
-    confetti({ ...defaults, particleCount: 220, spread: 110, startVelocity: 55, scalar: 1.1 });
-    window.setTimeout(() =>
-      confetti({ ...defaults, particleCount: 180, spread: 140, startVelocity: 45, scalar: 1.05 }),
-    180);
-    window.setTimeout(() =>
-      confetti({ ...defaults, particleCount: 160, spread: 160, startVelocity: 40, scalar: 1.0 }),
-    360);
-
-    // side cannons
-    confetti({ particleCount: 160, angle: 60, spread: 70, origin: { x: 0, y: 0.75 }, startVelocity: 55, scalar: 1.05 });
-    confetti({ particleCount: 160, angle: 120, spread: 70, origin: { x: 1, y: 0.75 }, startVelocity: 55, scalar: 1.05 });
-  };
 
   const focusModalClose = () => {
     modalCloseBtnRef.current?.focus();
@@ -160,60 +139,6 @@ export default function QuickLinks() {
 
   function closeVoucherModal() {
     setVoucherModalOpen(false);
-  }
-
-  async function submit() {
-    setError(null);
-    setWaUsedError(null);
-    setLoading(true);
-
-    try {
-      const r = await fetch("/api/voucher-create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, whatsapp: formatWaDigits(whatsapp) }),
-      });
-
-      const data = await r.json();
-      if (!r.ok) {
-        const msg = data?.error ?? "Something went wrong";
-        if (r.status === 409) {
-          setWaUsedError(msg);
-          return;
-        }
-        setError(msg);
-        return;
-      }
-
-      const createdData = data as CreatedVoucher;
-      setCreated(createdData);
-
-      // QR for counter scanning: encode ONLY voucher code
-      const qrRes = await fetch(`/api/voucher-qr?code=${encodeURIComponent(createdData.voucher.code)}`);
-      const qrData = await qrRes.json();
-      if (qrRes.ok) {
-        setQrUrl(qrData.qrUrl);
-      }
-
-      // Optional: build WhatsApp link so user can share to themselves manually
-      const waRes = await fetch(
-        `/api/voucher-qr?to=${encodeURIComponent(formatWaDigits(whatsapp))}&text=${encodeURIComponent(
-          buildWaText({ name, code: createdData.voucher.code, validityText: VALIDITY_TEXT })
-        )}`
-      );
-      const waData = await waRes.json();
-      if (waRes.ok) {
-        setWaUrl(waData.waUrl);
-      }
-
-      setStep("result");
-      setVoucherModalOpen(true);
-      fireConfetti();
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setLoading(false);
-    }
   }
 
   return (
@@ -559,7 +484,6 @@ export default function QuickLinks() {
                         setError(null);
                         setQrUrl(null);
                         setWaUrl(null);
-                        setLoading(false);
                       }}
                     >
                       Reset
@@ -625,13 +549,20 @@ export default function QuickLinks() {
 
                       {step === "form" ? (
                         <div className="mt-4 space-y-3">
+                          <div className="rounded-2xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+                            Voucher generation is temporarily disabled.
+                          </div>
+
                           <button
                             type="button"
-                            onClick={submit}
-                            disabled={loading}
-                            className="w-full rounded-xl bg-white text-[#0b102e] px-4 py-3 font-bold disabled:opacity-60"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              return;
+                            }}
+                            disabled={true}
+                            className="w-full rounded-xl bg-white text-[#0b102e] px-4 py-3 font-bold opacity-60 pointer-events-none"
                           >
-                            {loading ? "Claiming..." : "Claim Voucher"}
+                            Voucher generation disabled
                           </button>
                         </div>
                       ) : null}
@@ -652,50 +583,92 @@ export default function QuickLinks() {
             {/* Right: links */}
             <div className="rounded-[28px] border border-white/12 bg-white/5 backdrop-blur-2xl shadow-[0_24px_80px_rgba(0,0,0,0.35)] overflow-hidden">
               <div className="p-6 sm:p-7">
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-black/20 px-3 py-1.5 text-xs text-white/70">
-                  <Sparkles className="h-4 w-4 text-brand-gold" />
-                  Navigate
-                </div>
-
-                <div className="mt-6 grid gap-3">
-                  {[ 
-                    {
-                      name: "📍 Visit Us",
-                      url: "https://www.google.com/maps/place/Cozy+Corner+Cafe/@24.6763672,46.6996172,17z/data=!3m1!4b1!4m6!3m5!1s0x3e2f05140d4f4955:0xbf0491937c4649e7!8m2!3d24.6763672!4d46.6996172!16s%2Fg%2F11n48rn5vn?entry=ttu",
-                    },
-                    { name: "📸 Instagram", url: "https://www.instagram.com/cozycornersa.cafe/?hl=en" },
-                    { name: "💬 WhatsApp", url: "https://wa.me/966583236711" },
-                    { name: "🌐 Website", url: "https://cozy-corner-cafe-wasimkaunains-projects.vercel.app/" },
-                    { name: "👍 Facebook", url: "https://www.facebook.com/profile.php?id=61574238234936" },
-                  ].map((link) => (
-                    <a
-                      key={link.name}
-                      href={link.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="group flex items-center justify-between rounded-2xl border border-white/12 bg-black/20 px-5 py-4 transition hover:bg-white/10"
-                    >
-                      <span className="font-semibold text-white/90">{link.name}</span>
-                      <span className="text-white/40 group-hover:text-brand-gold transition">→</span>
-                    </a>
-                  ))}
-                </div>
-
-                <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <CalendarDays className="h-4 w-4 text-brand-gold" />
-                    Reminder
+                <div className="flex items-center justify-between">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-black/20 px-3 py-1.5 text-xs text-white/70">
+                    <Sparkles className="h-4 w-4 text-brand-gold" />
+                    Quick Links
                   </div>
-                  <p className="mt-2 text-sm text-white/65">
-                    Voucher codes are unique and stored securely in our database. Redemption will be available to staff in the next step.
-                  </p>
+                </div>
+
+                <div className="mt-6 grid gap-4">
+                  <a
+                    href="https://goo.gl/maps/xyz123"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:scale-[1.01] active:scale-[0.98]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-black/20">
+                        <img src="/icon-location.svg" alt="Location" className="h-6 w-6" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold text-white/90">Our Location</div>
+                        <div className="mt-1 text-xs text-white/55">
+                          Find us at Cozy Corner Cafe, Riyadh
+                        </div>
+                      </div>
+                    </div>
+                  </a>
+
+                  <a
+                    href="https://wa.me/9665XXXXXXXXX"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:scale-[1.01] active:scale-[0.98]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-black/20">
+                        <img src="/icon-whatsapp.svg" alt="WhatsApp" className="h-6 w-6" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold text-white/90">Chat with Us</div>
+                        <div className="mt-1 text-xs text-white/55">
+                          Have questions? We're here to help!
+                        </div>
+                      </div>
+                    </div>
+                  </a>
+
+                  <a
+                    href="https://instagram.com/yourcafe"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:scale-[1.01] active:scale-[0.98]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-black/20">
+                        <img src="/icon-instagram.svg" alt="Instagram" className="h-6 w-6" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold text-white/90">Follow us on Instagram</div>
+                        <div className="mt-1 text-xs text-white/55">
+                          Check out our latest updates and promotions
+                        </div>
+                      </div>
+                    </div>
+                  </a>
+
+                  <a
+                    href="https://facebook.com/yourcafe"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:scale-[1.01] active:scale-[0.98]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-black/20">
+                        <img src="/icon-facebook.svg" alt="Facebook" className="h-6 w-6" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold text-white/90">Like us on Facebook</div>
+                        <div className="mt-1 text-xs text-white/55">
+                          Join our community and stay updated
+                        </div>
+                      </div>
+                    </div>
+                  </a>
                 </div>
               </div>
             </div>
-          </div>
-
-          <div className="mt-10 text-center text-xs text-white/45">
-            © Cozy Corner Cafe · Grand Opening Voucher System
           </div>
         </div>
       </div>
