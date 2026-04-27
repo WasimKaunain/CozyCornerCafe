@@ -50,7 +50,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "Invalid PIN" });
   }
 
-  const exp = Math.floor(Date.now() / 1000) + 12 * 60 * 60; // 12h
+  // 1 day TTL
+  const exp = Math.floor(Date.now() / 1000) + 24 * 60 * 60;
   const token = sign({ exp, role: "biller" }, secret);
 
   return res.status(200).json({ ok: true, token, exp });

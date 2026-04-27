@@ -15,56 +15,56 @@ const OFFER_SEED = [
   },
   {
     id: 2,
-    title: "Pancakes/Waffles + Free Coffee of the Day",
+    title: "Buy Full Pancakes/Waffles and Get Free Coffee of the Day",
     description:
       "Order a full portion of pancakes or waffles and enjoy a complimentary Coffee of the Day.",
     initialStock: 8,
   },
   {
     id: 3,
-    title: "Pancakes/Waffles + Free V60 Coffee",
+    title: "Buy Full Pancakes/Waffles and Get V60 Free",
     description: "Order pancakes or waffles and get a free V60 coffee.",
     initialStock: 8,
   },
   {
     id: 4,
-    title: "French Toast + 50% Off Hot Coffee",
+    title: "Buy French Toast and Get  50% Off on any Hot Coffee",
     description: "Order French toast and get 50% off any hot coffee.",
     initialStock: 8,
   },
   {
     id: 5,
-    title: "Ciabatta + Free Cappuccino",
+    title: "Buy any Ciabatta and Get Free Cappuccino",
     description: "Order a ciabatta sandwich and enjoy a free cappuccino.",
     initialStock: 8,
   },
   {
     id: 6,
-    title: "Ciabatta + Mojito for Just 3 SR",
+    title: "Buy any Ciabatta and Get Mojito for Just 3 SR",
     description: "Order a ciabatta sandwich and get a mojito for only 3 SR.",
     initialStock: 8,
   },
   {
     id: 7,
-    title: "Cheesecake + Free Espresso",
+    title: "Buy Cheesecake and Get Free Espresso",
     description: "Order cheesecake and get a free espresso.",
     initialStock: 10,
   },
   {
     id: 8,
-    title: "Peach Tea for Only 5 SR",
+    title: "Buy Peach Tea for Only 5 SR",
     description: "Enjoy a peach tea for only 5 SR.",
     initialStock: 8,
   },
   {
     id: 9,
-    title: "Espresso for Only 2 SR",
+    title: "Buy Espresso for Only 2 SR",
     description: "Grab an espresso for only 2 SR.",
     initialStock: 10,
   },
   {
     id: 10,
-    title: "Frappe + 50% Off Any Dessert",
+    title: "Buy any Frappe and Get 50% Off on Any Dessert",
     description: "Order any frappe and get 50% off any dessert.",
     initialStock: 10,
   },
@@ -76,7 +76,7 @@ const OFFER_SEED = [
   },
   {
     id: 12,
-    title: "Hibiscus Lemonade + Free Croissant",
+    title: "Buy Hibiscus Lemonade and Get Free Croissant",
     description: "Order a hibiscus lemonade and enjoy a free croissant.",
     initialStock: 10,
   },
@@ -123,10 +123,15 @@ const bodySchema = z.object({
     .regex(/^\+?[0-9]{8,20}$/, "Invalid phone number"),
 });
 
-const nano = customAlphabet("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 8);
+const nano = customAlphabet("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 5);
 
 function voucherCode() {
   return nano();
+}
+
+function buildQrUrlForCode(code: string) {
+  // Counter-scan QR: encode only voucher code
+  return `https://api.qrserver.com/v1/create-qr-code/?size=420x420&data=${encodeURIComponent(code)}`;
 }
 
 // Valid till 3rd May midnight (23:59:59) in Asia/Riyadh
@@ -137,8 +142,6 @@ function validityEnd() {
   const utc = new Date(Date.UTC(2026, 4, 3, 20, 59, 59));
   return utc;
 }
-
-const TOTAL_VOUCHER_CAP = 100;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   withCors(res);
@@ -194,6 +197,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS offer_id INT;
       ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS offer_title TEXT;
       ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS offer_description TEXT;
+      ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS qr_url TEXT;
 
       CREATE INDEX IF NOT EXISTS idx_vouchers_offer_id ON vouchers(offer_id);
     `);
@@ -220,16 +224,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       WHERE offer_id IS NULL OR offer_title IS NULL OR offer_description IS NULL;
     `);
 
-    // HARD CAP: stop after 100 vouchers total
+    // NOTE: Vouchers are UNLIMITED now.
+    // Distribution rule: for each block of 100 vouchers, issue offers proportionally to their initialStock.
+    // We enforce this by computing a "cap" for each offer based on total vouchers already issued:
+    // cap(offer) = floor((totalIssued + 1) * (offer.initialStock / 100)).
+    // Then we pick from offers that are still under their cap.
+
+    // Total vouchers issued so far (unlimited campaign)
     const totalRes = await pool.query(`SELECT COUNT(*)::int AS cnt FROM vouchers`);
     const totalIssued = Number(totalRes.rows?.[0]?.cnt ?? 0);
-    if (totalIssued >= TOTAL_VOUCHER_CAP) {
-      return res.status(410).json({
-        error: "Vouchers are fully claimed",
-        message:
-          "Sorry, vouchers are currently unavailable. Thank you for the amazing response! Follow us on Instagram for the next drop.",
-      });
-    }
 
     // Insert customer (WhatsApp must be unique)
     let customerId: number;
@@ -246,7 +249,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw err;
     }
 
-    // Weighted offer selection based on remaining stock in the offers catalog
+    // Weighted offer selection based on proportional caps per 100 vouchers
     const offersRes = await pool.query(
       `SELECT id, title, description, initial_stock FROM offers ORDER BY id ASC`
     );
@@ -263,19 +266,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const usedById: Record<number, number> = {};
     for (const r of countsRes.rows) usedById[Number(r.offer_id)] = Number(r.cnt);
 
+    // Compute which offers are eligible under proportional caps
+    const nextTotal = totalIssued + 1;
+    const eligible = (offers.length ? offers : (OFFER_SEED as any)).filter((o: Offer) => {
+      const ratio = (o.initialStock ?? 0) / 100;
+      const cap = Math.floor(nextTotal * ratio);
+      const used = usedById[o.id] ?? 0;
+      return used < cap;
+    });
+
+    // If rounding makes nothing eligible (often when nextTotal is small), fall back to the original remaining-stock weighting.
     let offer: Offer;
-    try {
-      // Dynamic distribution: weights are recomputed every request from remaining stock.
-      offer = pickWeightedOffer(offers.length ? offers : (OFFER_SEED as any), usedById);
-    } catch (e: any) {
-      if (String(e?.message) === "OFFERS_EXHAUSTED") {
-        return res.status(410).json({
-          error: "Vouchers are fully claimed",
-          message:
-            "Sorry, vouchers are currently unavailable. Thank you for the amazing response! Follow us on Instagram for the next drop.",
-        });
+    if (eligible.length) {
+      // Weight by how far under cap the offer currently is.
+      const weighted = eligible
+        .map((o) => {
+          const ratio = (o.initialStock ?? 0) / 100;
+          const cap = Math.floor(nextTotal * ratio);
+          const used = usedById[o.id] ?? 0;
+          return { offer: o, w: Math.max(0, cap - used) };
+        })
+        .filter((x) => x.w > 0);
+
+      // As a safety net, if weighted ends empty, fall back to legacy behavior.
+      if (!weighted.length) {
+        offer = pickWeightedOffer(offers.length ? offers : (OFFER_SEED as any), usedById);
+      } else {
+        let picked = weighted[weighted.length - 1].offer;
+        const total = weighted.reduce((s, x) => s + x.w, 0);
+        let rr = Math.random() * total;
+        for (const x of weighted) {
+          rr -= x.w;
+          if (rr <= 0) {
+            picked = x.offer;
+            break;
+          }
+        }
+        offer = picked;
       }
-      throw e;
+    } else {
+      // Fallback to legacy behavior (never blocks issuing vouchers)
+      offer = pickWeightedOffer(offers.length ? offers : (OFFER_SEED as any), usedById);
     }
 
     const validEnd = validityEnd();
@@ -284,35 +315,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let code = "";
     for (let attempt = 0; attempt < 5; attempt++) {
       code = voucherCode();
+      const qrUrl = buildQrUrlForCode(code);
       try {
         const voucherRes = await pool.query(
-          `INSERT INTO vouchers (customer_id, code, validity_end, offer_id, offer_title, offer_description)
-           VALUES ($1, $2, $3, $4, $5, $6)
-           RETURNING id, code, validity_end, created_at, offer_id, offer_title, offer_description`,
-          [customerId, code, validEnd, offer.id, offer.title, offer.description]
+          `INSERT INTO vouchers (customer_id, code, validity_end, offer_id, offer_title, offer_description, qr_url)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING id, code, validity_end, created_at, offer_id, offer_title, offer_description, qr_url`,
+          [customerId, code, validEnd, offer.id, offer.title, offer.description, qrUrl]
         );
         const row = voucherRes.rows[0];
-
-        // Provide a downloadable voucher-card endpoint (client will download/share manually)
-        // Use absolute URL so the download always targets the current deployment origin.
-        const origin = (req.headers["x-forwarded-proto"] ? `${req.headers["x-forwarded-proto"]}://` : "") + (req.headers["x-forwarded-host"] || req.headers.host || "");
-        const voucherCardUrl = origin
-          ? `${origin}/api/voucher-card?code=${encodeURIComponent(row.code)}`
-          : `/api/voucher-card?code=${encodeURIComponent(row.code)}`;
 
         return res.status(200).json({
           ok: true,
           voucher: {
             id: row.id,
             code: row.code,
+            qrUrl: row.qr_url,
             validityEnd: row.validity_end,
             createdAt: row.created_at,
             offer: {
               id: row.offer_id,
+              code: row.offer_id, // offer code == offer id
               title: row.offer_title,
               description: row.offer_description,
             },
-            voucherCardUrl,
           },
           customer: { id: customerId, name, whatsapp },
         });

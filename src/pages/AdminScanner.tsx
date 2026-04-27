@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { X, CheckCircle2, XCircle, LogOut } from "lucide-react";
+
 
 type ValidateResp =
   | {
@@ -58,8 +59,33 @@ function setStoredToken(token: string | null) {
   }
 }
 
+function getTokenExp(token: string): number | null {
+  try {
+    const [bodyB64] = token.split(".");
+    if (!bodyB64) return null;
+
+    const b64 = bodyB64.replace(/-/g, "+").replace(/_/g, "/");
+    const pad = b64.length % 4 === 0 ? "" : "=".repeat(4 - (b64.length % 4));
+    const json = atob(b64 + pad);
+    const payload = JSON.parse(json) as any;
+    return typeof payload?.exp === "number" ? payload.exp : null;
+  } catch {
+    return null;
+  }
+}
+
+function isTokenValid(token: string | null) {
+  if (!token) return false;
+  const exp = getTokenExp(token);
+  if (!exp) return false;
+  return Math.floor(Date.now() / 1000) <= exp;
+}
+
 export default function AdminScanner() {
-  const [token, setToken] = useState<string | null>(() => getStoredToken());
+  const [token, setToken] = useState<string | null>(() => {
+    const t = getStoredToken();
+    return isTokenValid(t) ? t : null;
+  });
   const [pin, setPin] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
@@ -75,6 +101,23 @@ export default function AdminScanner() {
 
   const scannerId = "admin-qr-reader";
   const html5Ref = useRef<Html5Qrcode | null>(null);
+
+  // Prevent repeated scans while validating/redeeming
+  const scanLockRef = useRef(false);
+
+  // UI state for loading + modal result
+  const [scanStatus, setScanStatus] = useState<
+    | { state: "idle" }
+    | { state: "loading"; code: string }
+    | { state: "result"; code: string; ok: boolean; title: string; message: string }
+  >({ state: "idle" });
+
+  const isBusy = scanStatus.state === "loading" || scanStatus.state === "result";
+
+  const closeResult = useCallback(() => {
+    scanLockRef.current = false;
+    setScanStatus({ state: "idle" });
+  }, []);
 
   const authHeader = useMemo(() => {
     if (!token) return undefined;
@@ -174,6 +217,15 @@ export default function AdminScanner() {
       setBusy(false);
     }
   }
+
+  useEffect(() => {
+    const t = getStoredToken();
+    if (t && !isTokenValid(t)) {
+      // stale token in localStorage: clear it so we show PIN screen
+      setStoredToken(null);
+      setToken(null);
+    }
+  }, []);
 
   useEffect(() => {
     if (!token) return;

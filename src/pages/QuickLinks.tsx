@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X, Sparkles, Ticket, ShieldCheck, CalendarDays } from "lucide-react";
+import { FaWhatsapp, FaInstagram, FaFacebook, FaMapMarkerAlt } from "react-icons/fa";
 
 const VALIDITY_TEXT = "Valid till 3rd May 11:59 PM";
 
@@ -8,11 +9,14 @@ function buildWaText(opts: {
   name: string;
   code: string;
   validityText: string;
+  offerCode?: number;
+  qrUrl?: string | null;
 }) {
   // Keep instructions (user asked not to delete instructions)
-  return (
+  const base =
     `Hi ${opts.name}! Welcome to Cozy Corner Cafe.\n\n` +
     `Your Grand Opening Voucher Code: ${opts.code}\n` +
+    (opts.offerCode ? `Offer Code: ${opts.offerCode}\n` : "") +
     `${opts.validityText}\n\n` +
     `Instructions:\n` +
     `1) Show this voucher code at the cafe counter.\n` +
@@ -20,8 +24,20 @@ function buildWaText(opts: {
     `3) Not transferable and cannot be exchanged for cash.\n` +
     `4) Screenshots are not recommended; keep this message safe.\n\n` +
     `Location: Cozy Corner Cafe, Riyadh\n` +
-    `We can’t wait to serve you!`
-  );
+    `We can’t wait to serve you!`;
+
+  // WhatsApp has no real “highlight”, so we use separators + an uppercase label.
+  if (opts.qrUrl) {
+    return (
+      base +
+      `\n\n========================\n` +
+      `QR LINK (OPEN THIS)\n` +
+      `${opts.qrUrl}\n` +
+      `========================`
+    );
+  }
+
+  return base;
 }
 
 type CreatedVoucher = {
@@ -29,10 +45,10 @@ type CreatedVoucher = {
   voucher: {
     id: number;
     code: string;
+    qrUrl?: string;
     validityEnd: string;
     createdAt: string;
-    offer?: { id: number; title: string; description?: string };
-    voucherCardUrl?: string;
+    offer?: { id: number; code?: number; title: string; description?: string };
   };
 };
 
@@ -51,6 +67,35 @@ function getCountdownParts(target: Date) {
   const seconds = totalSec % 60;
 
   return { days, hours, minutes, seconds, done: diffMs <= 0 };
+}
+
+function normalizeWa(input: string) {
+  const raw = String(input ?? "").trim().replace(/\s+/g, "");
+  // keep leading + if present, strip other non-digits
+  const cleaned = raw.startsWith("+")
+    ? "+" + raw.slice(1).replace(/[^0-9]/g, "")
+    : raw.replace(/[^0-9]/g, "");
+
+  // If user typed local-style 05xxxxxxxx, keep as-is (we won't assume country).
+  return cleaned;
+}
+
+function validateWa(input: string): { ok: true; value: string } | { ok: false; error: string } {
+  const n = normalizeWa(input);
+
+  if (!n) return { ok: false, error: "Enter your WhatsApp number." };
+
+  // Accept international E.164-like:
+  // +<country><number> (8..15 digits total after +)
+  // Also accept digits without + (8..15) and we will add +
+  const digits = n.startsWith("+") ? n.slice(1) : n;
+
+  if (!/^\d{8,15}$/.test(digits)) {
+    return { ok: false, error: "Invalid WhatsApp number. Please enter a valid international number." };
+  }
+
+  const value = n.startsWith("+") ? n : "+" + n;
+  return { ok: true, value };
 }
 
 export default function QuickLinks() {
@@ -90,14 +135,16 @@ export default function QuickLinks() {
   const [name, setName] = useState("");
   const [whatsapp, setWhatsapp] = useState("+966");
 
+  const [formTouched, setFormTouched] = useState(false);
+
   // Voucher generation temporarily disabled
   const [error, setError] = useState<string | null>(null);
-  const [waUsedError] = useState<string | null>(null);
+  const [waUsedError, setWaUsedError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   // Keep for UI compatibility, but they won't be set while generation is disabled
   const [created, setCreated] = useState<CreatedVoucher | null>(null);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
-  const [waUrl, setWaUrl] = useState<string | null>(null);
 
   const waText = useMemo(() => {
     if (!created) return "";
@@ -105,8 +152,10 @@ export default function QuickLinks() {
       name: created.customer.name,
       code: created.voucher.code,
       validityText: VALIDITY_TEXT,
+      offerCode: created.voucher.offer?.id,
+      qrUrl,
     });
-  }, [created]);
+  }, [created, qrUrl]);
 
   const [voucherModalOpen, setVoucherModalOpen] = useState(false);
   const modalCloseBtnRef = useRef<HTMLButtonElement | null>(null);
@@ -139,6 +188,83 @@ export default function QuickLinks() {
 
   function closeVoucherModal() {
     setVoucherModalOpen(false);
+  }
+
+  async function submit() {
+    if (loading) return;
+    setError(null);
+    setWaUsedError(null);
+
+    setFormTouched(true);
+
+    const nm = name.trim();
+    if (nm.length < 2) {
+      setError("Please enter your full name.");
+      return;
+    }
+
+    const waCheck = validateWa(whatsapp);
+    if (!waCheck.ok) {
+      setError(waCheck.error);
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const r = await fetch("/api/voucher-create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: nm, whatsapp: waCheck.value }),
+      });
+
+      const data = await r.json();
+      if (!r.ok) {
+        const msg = data?.error ?? "Something went wrong";
+        if (r.status === 409) {
+          setWaUsedError(msg);
+          return;
+        }
+        setError(msg);
+        return;
+      }
+
+      const createdData = data as CreatedVoucher;
+      setCreated(createdData);
+
+      // Prefer backend-provided qrUrl (also stored in DB)
+      if (createdData.voucher.qrUrl) {
+        setQrUrl(createdData.voucher.qrUrl);
+      } else {
+        // Fallback: generate QR URL on the fly
+        const qrRes = await fetch(`/api/voucher-qr?code=${encodeURIComponent(createdData.voucher.code)}`);
+        const qrData = await qrRes.json();
+        if (qrRes.ok) setQrUrl(qrData.qrUrl);
+      }
+
+      setStep("result");
+      setVoucherModalOpen(true);
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function shareToWhatsApp() {
+    if (!created) return;
+
+    const msg = buildWaText({
+      name: created.customer.name,
+      code: created.voucher.code,
+      validityText: VALIDITY_TEXT,
+      offerCode: created.voucher.offer?.id,
+      qrUrl,
+    });
+
+    const digits = created.customer.whatsapp.replace(/\s+/g, "").replace(/^\+/, "");
+    const waTextUrl = `https://wa.me/${encodeURIComponent(digits)}?text=${encodeURIComponent(msg)}`;
+    window.open(waTextUrl, "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -321,7 +447,7 @@ export default function QuickLinks() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
-            className="fixed inset-0 z-[120] grid place-items-center px-4 py-[max(16px,env(safe-area-inset-top))]"
+            className="fixed inset-0 z-[120] grid place-items-center px-3 sm:px-4 py-[max(12px,env(safe-area-inset-top))]"
           >
             <button
               onClick={closeVoucherModal}
@@ -334,7 +460,7 @@ export default function QuickLinks() {
               animate={{ y: 0, opacity: 1, scale: 1 }}
               exit={{ y: 10, opacity: 0, scale: 0.99 }}
               transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-              className="relative z-10 w-full max-w-[92vw] sm:max-w-xl md:max-w-2xl max-h-[calc(100dvh-32px)] overflow-y-auto overscroll-contain rounded-[28px] border border-white/15 bg-white/10 backdrop-blur-2xl shadow-[0_35px_110px_rgba(0,0,0,0.60)]"
+              className="relative z-10 w-full max-w-[96vw] sm:max-w-xl md:max-w-2xl max-h-[calc(100dvh-20px)] overflow-y-auto overscroll-contain rounded-[26px] border border-white/15 bg-white/10 backdrop-blur-2xl shadow-[0_35px_110px_rgba(0,0,0,0.60)]"
               role="dialog"
               aria-modal="true"
             >
@@ -343,9 +469,9 @@ export default function QuickLinks() {
                 <div className="pt-3">
                   <div className="mx-auto h-1.5 w-12 rounded-full bg-white/25" aria-hidden="true" />
                 </div>
-                <div className="flex items-center justify-between gap-3 px-6 py-3 sm:px-7 md:px-8">
+                <div className="flex items-center justify-between gap-3 px-4 sm:px-7 md:px-8 py-3">
                   <div className="min-w-0">
-                    <div className="text-xs text-white/55">Voucher</div>
+                    <div className="text-xs text-white/55">Official Voucher</div>
                     <div className="truncate text-sm font-semibold text-white/90">{created.customer.name}</div>
                   </div>
 
@@ -360,8 +486,8 @@ export default function QuickLinks() {
                 </div>
               </div>
 
-              <div className="p-6 sm:p-7 md:p-8">
-                <div className="flex items-start justify-between gap-4 pr-10">
+              <div className="p-4 sm:p-7 md:p-8">
+                <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-black/20 px-3 py-1.5 text-xs text-white/70">
                       <Ticket className="h-4 w-4 text-brand-gold" />
@@ -371,33 +497,103 @@ export default function QuickLinks() {
                       Your voucher is ready
                     </h3>
                     <p className="mt-2 text-sm text-white/65">
-                      Show this QR at the counter. The QR contains only your voucher code.
+                      Present this voucher at the counter. The QR contains only your voucher code.
                     </p>
                   </div>
                 </div>
 
+                {/* Critical Rule */}
+                <div className="mt-4 rounded-3xl border border-amber-300/25 bg-amber-300/10 p-4">
+                  <div className="text-xs font-semibold tracking-wide text-amber-200">IMPORTANT — READ</div>
+                  <div className="mt-2 text-sm text-white/90 leading-relaxed">
+                    <span className="font-extrabold">Screenshots are NOT allowed.</span> To redeem this voucher, you must
+                    <span className="font-extrabold"> share it on your WhatsApp</span> and
+                    <span className="font-extrabold"> show the WhatsApp message</span> at the counter.
+                  </div>
+                  <div className="mt-2 text-[12px] text-white/70">
+                    This is mandatory for verification and to prevent duplicate use.
+                  </div>
+                </div>
+
                 <div className="mt-5 grid gap-4 md:grid-cols-[1fr_0.95fr]">
+                  {/* Left: details */}
                   <div className="rounded-3xl border border-white/12 bg-black/20 p-5">
-                    <div className="text-xs text-white/55">Voucher Code</div>
-                    <div className="mt-1 font-mono text-3xl font-black tracking-widest text-brand-gold">
-                      {created.voucher.code}
-                    </div>
-
-                    {created.voucher.offer?.title && (
-                      <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                        <div className="text-[11px] text-white/55">Offer</div>
-                        <div className="mt-1 text-sm font-semibold text-white/90">{created.voucher.offer.title}</div>
+                    <div className="grid gap-4">
+                      <div>
+                        <div className="text-[11px] uppercase tracking-wider text-white/55">Voucher Code</div>
+                        <div className="mt-1 inline-flex items-center gap-3">
+                          <div className="font-mono text-3xl sm:text-4xl font-black tracking-[0.22em] text-brand-gold">
+                            {created.voucher.code}
+                          </div>
+                        </div>
                       </div>
-                    )}
 
-                    <div className="mt-3 inline-flex items-center gap-2 text-xs text-white/60">
-                      <CalendarDays className="h-4 w-4 text-brand-gold" />
-                      {VALIDITY_TEXT}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                          <div className="text-[11px] uppercase tracking-wider text-white/55">Name</div>
+                          <div className="mt-1 text-sm font-bold text-white/95 truncate">{created.customer.name}</div>
+                        </div>
+
+                        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                          <div className="text-[11px] uppercase tracking-wider text-white/55">Offer Code</div>
+                          <div className="mt-1 text-sm font-extrabold text-white/95">
+                            {created.voucher.offer?.id ?? "—"}
+                          </div>
+                        </div>
+                      </div>
+
+                      {created.voucher.offer?.title && (
+                        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                          <div className="text-[11px] uppercase tracking-wider text-white/55">Offer Details</div>
+                          <div className="mt-1 text-sm font-extrabold text-white/95">
+                            {created.voucher.offer.title}
+                          </div>
+                          {created.voucher.offer.description ? (
+                            <div className="mt-1 text-[12px] text-white/70 leading-relaxed">
+                              {created.voucher.offer.description}
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
+
+                      <div className="inline-flex items-center gap-2 text-xs text-white/70">
+                        <CalendarDays className="h-4 w-4 text-brand-gold" />
+                        <span className="font-bold text-white/90">{VALIDITY_TEXT}</span>
+                      </div>
+
+                      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                        <div className="text-[11px] uppercase tracking-wider text-white/55">How to redeem</div>
+                        <ol className="mt-2 grid gap-2 text-[13px] text-white/80">
+                          <li>
+                            <span className="font-bold text-white/95">1)</span> Tap
+                            <span className="font-extrabold text-brand-gold"> “Send to WhatsApp”</span> below.
+                          </li>
+                          <li>
+                            <span className="font-bold text-white/95">2)</span> Keep the WhatsApp message safe (do not delete).
+                          </li>
+                          <li>
+                            <span className="font-bold text-white/95">3)</span> At the counter, show the
+                            <span className="font-extrabold"> WhatsApp message</span> and the
+                            <span className="font-extrabold"> QR</span> to the staff.
+                          </li>
+                          <li>
+                            <span className="font-bold text-white/95">4)</span> Voucher is
+                            <span className="font-extrabold"> one-time use</span> only and
+                            <span className="font-extrabold"> not transferable</span>.
+                          </li>
+                        </ol>
+                      </div>
+
+                      <details className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                        <summary className="cursor-pointer text-xs font-semibold text-white/80">
+                          Preview WhatsApp message (for your reference)
+                        </summary>
+                        <div className="mt-3 text-[12px] text-white/60 whitespace-pre-line">{waText}</div>
+                      </details>
                     </div>
-
-                    <div className="mt-4 text-[11px] text-white/55 whitespace-pre-line">{waText}</div>
                   </div>
 
+                  {/* Right: QR */}
                   <div className="rounded-3xl border border-white/12 bg-black/20 p-5">
                     <div className="flex items-center justify-between">
                       <div className="text-sm font-semibold">Counter QR</div>
@@ -405,41 +601,37 @@ export default function QuickLinks() {
                     </div>
                     <div className="mt-4 rounded-2xl border border-white/12 bg-white/5 p-3 grid place-items-center">
                       {qrUrl ? (
-                        <img src={qrUrl} alt="Voucher QR" className="w-full max-w-[260px] h-auto rounded-xl" />
+                        <img src={qrUrl} alt="Voucher QR" className="w-full max-w-[280px] h-auto rounded-xl" />
                       ) : (
                         <div className="text-xs text-white/55">Generating QR...</div>
                       )}
                     </div>
-                    <div className="mt-3 text-xs text-white/55">Present this QR at the billing counter. Staff will validate this voucher.</div>
+                    <div className="mt-3 text-xs text-white/65 leading-relaxed">
+                      <span className="font-bold text-white/90">Show this QR at the counter</span>. Staff will validate and redeem the voucher.
+                    </div>
                   </div>
                 </div>
 
-                {/* Bottom actions: exactly two options */}
-                <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                  <a
-                    href={created.voucher.voucherCardUrl || `/api/voucher-card?code=${encodeURIComponent(created.voucher.code)}`}
-                    download
-                    className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-5 py-3 font-semibold text-white/85 transition hover:bg-white/10"
-                  >
-                    Download Voucher
-                  </a>
-
+                {/* Bottom actions */}
+                <div className="mt-5 grid gap-3">
                   <button
-                    onClick={() => {
-                      if (!waUrl) return;
-                      window.open(waUrl, "_blank", "noopener,noreferrer");
-                    }}
+                    onClick={shareToWhatsApp}
+                    disabled={!created}
                     className={
-                      "inline-flex items-center justify-center rounded-2xl bg-brand-gold px-5 py-3 font-semibold text-brand-navy transition hover:brightness-110 " +
-                      (!waUrl ? "opacity-60 pointer-events-none" : "")
+                      "inline-flex items-center justify-center rounded-2xl bg-brand-gold px-5 py-4 font-extrabold text-brand-navy shadow-[0_18px_55px_rgba(195,160,89,0.28)] transition hover:brightness-110 active:brightness-110 " +
+                      (!created ? "opacity-60 pointer-events-none" : "")
                     }
                   >
-                    Share on WhatsApp
+                    Send to WhatsApp (Required)
                   </button>
+
+                  <div className="text-center text-[11px] text-white/55">
+                    By using this voucher, you accept Cozy Corner Cafe voucher terms.
+                  </div>
                 </div>
 
                 {/* bottom safe-area spacer for mobile so last content isn't hidden */}
-                <div className="h-[max(16px,env(safe-area-inset-bottom))]" />
+                <div className="h-[max(14px,env(safe-area-inset-bottom))]" />
               </div>
             </motion.div>
           </motion.div>
@@ -483,7 +675,6 @@ export default function QuickLinks() {
                         setCreated(null);
                         setError(null);
                         setQrUrl(null);
-                        setWaUrl(null);
                       }}
                     >
                       Reset
@@ -512,60 +703,85 @@ export default function QuickLinks() {
                 {step === "form" && (
                   <div className="mt-6">
                     <h3 className="font-display text-2xl font-bold">Claim your voucher</h3>
-                    <p className="mt-2 text-white/65">Enter details and submit. We’ll generate a unique code.</p>
+                    <p className="mt-2 text-white/65">
+                      Enter your details below. We’ll generate an official voucher that must be shared on WhatsApp.
+                    </p>
 
                     <div className="mt-6 grid gap-4">
-                      <label className="grid gap-2">
-                        <span className="text-sm text-white/70">Name</span>
-                        <input
-                          value={name}
-                          onChange={(e) => setName(e.target.value)}
-                          placeholder="Your full name"
-                          className="h-12 rounded-2xl border border-white/12 bg-black/20 px-4 text-white placeholder:text-white/35 outline-none focus:border-brand-gold/60"
-                        />
-                      </label>
+                      {/* Premium form card */}
+                      <div className="rounded-3xl border border-white/12 bg-black/20 p-5 sm:p-6">
+                        <div className="grid gap-4">
+                          <label className="grid gap-2">
+                            <span className="text-xs font-semibold tracking-wide text-white/70">Full Name</span>
+                            <input
+                              value={name}
+                              onChange={(e) => setName(e.target.value)}
+                              placeholder="e.g. Wasim Kaunain"
+                              autoComplete="name"
+                              className="h-12 rounded-2xl border border-white/12 bg-black/30 px-4 text-white placeholder:text-white/35 outline-none focus:border-brand-gold/60 focus:ring-2 focus:ring-brand-gold/20"
+                            />
+                            {formTouched && name.trim().length > 0 && name.trim().length < 2 ? (
+                              <span className="text-[11px] text-red-200">Please enter your full name.</span>
+                            ) : null}
+                          </label>
 
-                      <label className="grid gap-2">
-                        <span className="text-sm text-white/70">WhatsApp Number</span>
-                        <input
-                          value={whatsapp}
-                          onChange={(e) => setWhatsapp(e.target.value)}
-                          placeholder="+9665XXXXXXXX"
-                          className="h-12 rounded-2xl border border-white/12 bg-black/20 px-4 text-white placeholder:text-white/35 outline-none focus:border-brand-gold/60"
-                        />
-                        <span className="text-[11px] text-white/45">Include country code (e.g. +966...)</span>
-                        {waUsedError && (
-                          <span className="text-[11px] text-red-200">
-                            {waUsedError}
-                          </span>
-                        )}
-                      </label>
+                          <label className="grid gap-2">
+                            <span className="text-xs font-semibold tracking-wide text-white/70">WhatsApp Number</span>
+                            <div className="relative">
+                              <input
+                                value={whatsapp}
+                                onChange={(e) => setWhatsapp(e.target.value)}
+                                onBlur={() => setWhatsapp((v) => normalizeWa(v))}
+                                placeholder="+9665XXXXXXXX"
+                                inputMode="tel"
+                                autoComplete="tel"
+                                className="h-12 w-full rounded-2xl border border-white/12 bg-black/30 px-4 pr-12 text-white placeholder:text-white/35 outline-none focus:border-brand-gold/60 focus:ring-2 focus:ring-brand-gold/20"
+                              />
+                              <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                                <FaWhatsapp className="h-5 w-5 text-[#25D366]" aria-hidden="true" />
+                              </div>
+                            </div>
 
-                      {error && (
-                        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                          {error}
-                        </div>
-                      )}
+                            <div className="text-[11px] text-white/50 leading-relaxed">
+                              Use your international format starting with <span className="font-semibold text-white/70">+</span>.
+                              Example: <span className="font-semibold text-white/70">+966XXXXXXXXX</span>
+                            </div>
 
-                      {step === "form" ? (
-                        <div className="mt-4 space-y-3">
-                          <div className="rounded-2xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
-                            Voucher generation is temporarily disabled.
+                            {formTouched && (() => {
+                              const v = validateWa(whatsapp);
+                              if (v.ok) {
+                                return <span className="text-[11px] text-emerald-200">Number looks valid.</span>;
+                              }
+                              if (whatsapp.trim().length === 0) return null;
+                              return <span className="text-[11px] text-red-200">{v.error}</span>;
+                            })()}
+
+                            {waUsedError && <span className="text-[11px] text-red-200">{waUsedError}</span>}
+                          </label>
+
+                          {error && (
+                            <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                              {error}
+                            </div>
+                          )}
+
+                          <div className="mt-2 grid gap-3">
+                            <button
+                              type="button"
+                              onClick={submit}
+                              disabled={loading}
+                              className="w-full rounded-2xl bg-brand-gold text-brand-navy px-5 py-4 font-extrabold shadow-[0_18px_55px_rgba(195,160,89,0.28)] disabled:opacity-60 transition hover:brightness-110"
+                            >
+                              {loading ? "Claiming..." : "Claim Official Voucher"}
+                            </button>
+
+                            <div className="text-center text-[11px] text-white/55 leading-relaxed">
+                              After claiming, you must share the voucher to your WhatsApp and show the WhatsApp
+                              message at the counter.
+                            </div>
                           </div>
-
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              return;
-                            }}
-                            disabled={true}
-                            className="w-full rounded-xl bg-white text-[#0b102e] px-4 py-3 font-bold opacity-60 pointer-events-none"
-                          >
-                            Voucher generation disabled
-                          </button>
                         </div>
-                      ) : null}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -592,77 +808,69 @@ export default function QuickLinks() {
 
                 <div className="mt-6 grid gap-4">
                   <a
-                    href="https://goo.gl/maps/xyz123"
+                    href="https://www.google.com/maps/place/Cozy+Corner+Cafe/@24.6768574,46.6971651,17z/data=!3m1!4b1!4m6!3m5!1s0x3e2f05140d4f4955:0xbf0491937c4649e7!8m2!3d24.6768525!4d46.69974!16s%2Fg%2F11n48rn5vn?entry=ttu&g_ep=EgoyMDI2MDQyMi4wIKXMDSoASAFQAw%3D%3D"
                     target="_blank"
                     rel="noreferrer"
                     className="block rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:scale-[1.01] active:scale-[0.98]"
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-black/20">
-                        <img src="/icon-location.svg" alt="Location" className="h-6 w-6" />
+                        <FaMapMarkerAlt className="h-6 w-6 text-[#EA4335]" aria-hidden="true" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-semibold text-white/90">Our Location</div>
-                        <div className="mt-1 text-xs text-white/55">
-                          Find us at Cozy Corner Cafe, Riyadh
-                        </div>
+                        <div className="mt-1 text-xs text-white/55">Find us at Cozy Corner Cafe, Riyadh</div>
                       </div>
                     </div>
                   </a>
 
                   <a
-                    href="https://wa.me/9665XXXXXXXXX"
+                    href="https://wa.me/966583236711"
                     target="_blank"
                     rel="noreferrer"
                     className="block rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:scale-[1.01] active:scale-[0.98]"
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-black/20">
-                        <img src="/icon-whatsapp.svg" alt="WhatsApp" className="h-6 w-6" />
+                        <FaWhatsapp className="h-6 w-6 text-[#25D366]" aria-hidden="true" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-semibold text-white/90">Chat with Us</div>
-                        <div className="mt-1 text-xs text-white/55">
-                          Have questions? We're here to help!
-                        </div>
+                        <div className="mt-1 text-xs text-white/55">Have questions? We're here to help!</div>
                       </div>
                     </div>
                   </a>
 
                   <a
-                    href="https://instagram.com/yourcafe"
+                    href="https://www.instagram.com/cozycornersa.cafe/?hl=en"
                     target="_blank"
                     rel="noreferrer"
                     className="block rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:scale-[1.01] active:scale-[0.98]"
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-black/20">
-                        <img src="/icon-instagram.svg" alt="Instagram" className="h-6 w-6" />
+                        <FaInstagram className="h-6 w-6 text-[#E1306C]" aria-hidden="true" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-semibold text-white/90">Follow us on Instagram</div>
-                        <div className="mt-1 text-xs text-white/55">
-                          Check out our latest updates and promotions
-                        </div>
+                        <div className="mt-1 text-xs text-white/55">Check out our latest updates and promotions</div>
                       </div>
                     </div>
                   </a>
 
                   <a
-                    href="https://facebook.com/yourcafe"
+                    href="https://www.facebook.com/profile.php?id=61574238234936"
                     target="_blank"
                     rel="noreferrer"
                     className="block rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:scale-[1.01] active:scale-[0.98]"
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-black/20">
-                        <img src="/icon-facebook.svg" alt="Facebook" className="h-6 w-6" />
+                        <FaFacebook className="h-6 w-6 text-[#1877F2]" aria-hidden="true" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-semibold text-white/90">Like us on Facebook</div>
-                        <div className="mt-1 text-xs text-white/55">
-                          Join our community and stay updated
-                        </div>
+                        <div className="mt-1 text-xs text-white/55">Join our community and stay updated</div>
                       </div>
                     </div>
                   </a>
