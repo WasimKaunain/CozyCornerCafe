@@ -5,7 +5,14 @@ import { getPool } from "./_db.js";
 import { requireAdminConsoleAuth } from "./_adminConsoleAuth.js";
 
 const querySchema = z.object({
-  q: z.string().trim().min(1).max(32).optional(),
+  // Allow empty string so the UI can call `?q=` without triggering 400.
+  // We normalize it to "" and treat as no filter.
+  q: z
+    .string()
+    .trim()
+    .max(32)
+    .optional()
+    .transform((v) => (v && v.length ? v : undefined)),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(25),
   format: z.enum(["json", "csv"]).optional(),
