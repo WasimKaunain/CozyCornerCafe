@@ -226,7 +226,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
   }
 
-  const isProd = process.env.NODE_ENV === "production";
+  // const isProd = process.env.NODE_ENV === "production";
+  const isProd = false;
 
   try {
     const { name, whatsapp } = parsed.data;
@@ -445,18 +446,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Covers pool init errors and schema creation errors
     return res.status(500).json({
       error: "Function failed",
-      ...(isProd
-        ? {}
-        : {
-            debug: {
-              message: err?.message,
-              code: err?.code,
-              detail: err?.detail,
-              hint: err?.hint,
-              where: err?.where,
-              stack: err?.stack,
-            },
-          }),
+      debug: {
+        message: err?.message,
+        code: err?.code,
+        detail: err?.detail,
+        hint: err?.hint,
+        where: err?.where,
+        stack: err?.stack,
+      },
     });
   }
 }
