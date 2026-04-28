@@ -107,8 +107,8 @@ function pickWeightedOffer(offers: Offer[], usedById: Record<number, number>): O
     .filter((x) => x.w > 0);
 
   if (!weighted.length) {
-    // If all offers are exhausted, the campaign is effectively over (even if total cap not reached).
-    throw new Error("OFFERS_EXHAUSTED");
+    // If all offers are exhausted, just pick the last offer (never block issuance)
+    return offers[offers.length - 1];
   }
 
   const total = weighted.reduce((s, x) => s + x.w, 0);
@@ -351,109 +351,137 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     // If rounding makes nothing eligible (often when nextTotal is small), fall back to the original remaining-stock weighting.
-    let offer: Offer;
-    if (eligible.length) {
-      // Weight by how far under cap the offer currently is.
-      const weighted = eligible
-        .map((o) => {
-          const ratio = (o.initialStock ?? 0) / 130;
-          const cap = Math.floor(nextTotal * ratio);
-          const used = usedById[o.id] ?? 0;
-          return { offer: o, w: Math.max(0, cap - used) };
-        })
-        .filter((x) => x.w > 0);
-
-      // As a safety net, if weighted ends empty, fall back to legacy behavior.
-      if (!weighted.length) {
-        offer = pickWeightedOffer(offers.length ? offers : (OFFER_SEED as any), usedById);
-      } else {
-        let picked = weighted[weighted.length - 1].offer;
-        const total = weighted.reduce((s, x) => s + x.w, 0);
-        let rr = Math.random() * total;
-        for (const x of weighted) {
-          rr -= x.w;
-          if (rr <= 0) {
-            picked = x.offer;
+    let offer: Offer | null = null;
+      
+    // ================= SAFE SELECTION =================
+      
+    // Step 1: Try controlled distribution
+    if (eligible.length > 0) {
+      offer = eligible[Math.floor(Math.random() * eligible.length)];
+    } else {
+      // Step 2: Weighted fallback (based only on initialStock)
+    
+      const baseOffers = offers.length ? offers : (OFFER_SEED as any);
+    
+      const totalWeight = baseOffers.reduce(
+        (s: number, o: Offer) => s + (o.initialStock || 0),
+        0
+      );
+    
+      if (totalWeight > 0) {
+        let r = Math.random() * totalWeight;
+      
+        for (const o of baseOffers) {
+          r -= (o.initialStock || 0);
+          if (r <= 0) {
+            offer = o;
             break;
           }
         }
-        offer = picked;
       }
-    } else {
-      // Fallback to legacy behavior (never blocks issuing vouchers)
-      offer = pickWeightedOffer(offers.length ? offers : (OFFER_SEED as any), usedById);
-    }
-
-    const validEnd = validityEnd();
-
-    // Insert voucher (retry on code collisions)
-    let code = "";
-    for (let attempt = 0; attempt < 5; attempt++) {
-      code = voucherCode();
-      const qrUrl = buildQrUrlForCode(code);
-      try {
-        const voucherRes = await pool.query(
-          `INSERT INTO vouchers (customer_id, code, validity_end, offer_id, offer_title, offer_description, qr_url)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
-           RETURNING id, code, validity_end, created_at, offer_id, offer_title, offer_description, qr_url`,
-          [customerId, code, validEnd, offer.id, offer.title, offer.description, qrUrl]
-        );
-        const row = voucherRes.rows[0];
-
-        return res.status(200).json({
-          ok: true,
-          voucher: {
-            id: row.id,
-            code: row.code,
-            qrUrl: row.qr_url,
-            validityEnd: row.validity_end,
-            createdAt: row.created_at,
-            offer: {
-              id: row.offer_id,
-              code: row.offer_id, // offer code == offer id
-              title: row.offer_title,
-              description: row.offer_description,
-            },
-          },
-          customer: { id: customerId, name, whatsapp },
-        });
-      } catch (err: any) {
-        const pgCode = err?.code;
-        if (pgCode === "23505") {
-          // unique violation (likely code collision), retry
-          continue;
-        }
-
-        return res.status(500).json({
-          error: "Database error",
-          ...(isProd
-            ? {}
-            : {
-                debug: {
-                  message: err?.message,
-                  code: err?.code,
-                  detail: err?.detail,
-                  hint: err?.hint,
-                  where: err?.where,
-                },
-              }),
-        });
+    
+      // Step 3: Absolute fallback (never fail)
+      if (!offer) {
+        offer = baseOffers[0];
       }
     }
 
-    return res.status(500).json({ error: "Failed to generate unique voucher" });
-  } catch (err: any) {
-    // Covers pool init errors and schema creation errors
-    return res.status(500).json({
-      error: "Function failed",
-      debug: {
-        message: err?.message,
-        code: err?.code,
-        detail: err?.detail,
-        hint: err?.hint,
-        where: err?.where,
-        stack: err?.stack,
+// ================= END =================
+
+
+const validEnd = validityEnd();
+
+// 🔥 GUARANTEE offer exists (safety guard)
+if (!offer) {
+  const fallback = offers.length ? offers[0] : OFFER_SEED[0];
+  offer = fallback;
+}
+
+// Insert voucher (retry on code collisions)
+let code = "";
+
+for (let attempt = 0; attempt < 5; attempt++) {
+  code = voucherCode();
+
+  // 🔥 safety: skip if somehow empty
+  if (!code) continue;
+
+  const qrUrl = buildQrUrlForCode(code);
+
+  try {
+    const voucherRes = await pool.query(
+      `INSERT INTO vouchers (customer_id, code, validity_end, offer_id, offer_title, offer_description, qr_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, code, validity_end, created_at, offer_id, offer_title, offer_description, qr_url`,
+      [
+        customerId,
+        code,
+        validEnd,
+        offer.id,
+        offer.title,
+        offer.description,
+        qrUrl,
+      ]
+    );
+
+    const row = voucherRes.rows[0];
+
+    return res.status(200).json({
+      ok: true,
+      voucher: {
+        id: row.id,
+        code: row.code,
+        qrUrl: row.qr_url,
+        validityEnd: row.validity_end,
+        createdAt: row.created_at,
+        offer: {
+          id: row.offer_id,
+          code: row.offer_id, // offer code == offer id
+          title: row.offer_title,
+          description: row.offer_description,
+        },
       },
+      customer: { id: customerId, name, whatsapp },
+    });
+
+  } catch (err: any) {
+    const pgCode = err?.code;
+
+    if (pgCode === "23505") {
+      // unique violation (likely code collision), retry
+      continue;
+    }
+
+    return res.status(500).json({
+      error: "Database error",
+      ...(isProd
+        ? {}
+        : {
+            debug: {
+              message: err?.message,
+              code: err?.code,
+              detail: err?.detail,
+              hint: err?.hint,
+              where: err?.where,
+            },
+          }),
     });
   }
 }
+
+// If all retries fail
+return res.status(500).json({ error: "Failed to generate unique voucher" });
+
+} catch (err: any) {
+  return res.status(500).json({
+    error: "Function failed",
+    debug: {
+      message: err?.message,
+      code: err?.code,
+      detail: err?.detail,
+      hint: err?.hint,
+      where: err?.where,
+      stack: err?.stack,
+    },
+  });
+}}
