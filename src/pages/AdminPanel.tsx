@@ -429,10 +429,6 @@ function AdminConsole() {
             >
               {authLoading ? "Signing in..." : "Login"}
             </button>
-
-            <div className="text-xs text-white/45">
-              Requires Vercel env: <code className="text-white/70">ADMIN_CONSOLE_USER</code>, <code className="text-white/70">ADMIN_CONSOLE_PASS</code>, <code className="text-white/70">ADMIN_CONSOLE_AUTH_SECRET</code>
-            </div>
           </div>
         </div>
       </div>
@@ -492,10 +488,6 @@ function AdminConsole() {
               icon={<CheckCircle2 className="h-5 w-5" />}
               onClick={() => openGrouped("Total vouchers redeemed", "/api/admin-console-vouchers-redeemed")}
             />
-          </div>
-
-          <div className="mt-4 text-[11px] text-white/45">
-            Note: lists are limited to keep the console fast. If you need pagination/export, tell me.
           </div>
         </div>
       </div>

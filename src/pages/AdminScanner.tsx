@@ -354,10 +354,6 @@ export default function AdminScanner() {
               >
                 {authLoading ? "Signing in..." : "Login"}
               </button>
-
-              <div className="text-xs text-white/45">
-                Tip: add <code className="text-white/70">ADMIN_PIN</code> and <code className="text-white/70">ADMIN_AUTH_SECRET</code> in Vercel env.
-              </div>
             </div>
           </div>
         ) : (
@@ -383,7 +379,7 @@ export default function AdminScanner() {
             <div className="rounded-3xl border border-white/12 bg-white/5 p-5">
               <div className="text-sm font-semibold">Manual entry (always available)</div>
               <p className="mt-1 text-xs text-white/55">
-                Type/paste a voucher code to validate & redeem. Use this anytime (even if camera works).
+                Type/paste a voucher code to validate & redeem if scanner fails to work.
               </p>
               <ManualRedeem onRedeem={validateAndRedeem} disabled={busy || scanStatus.state === "loading"} />
             </div>
