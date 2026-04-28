@@ -160,7 +160,19 @@ function Hero() {
     <section id="home" ref={heroRef} className="relative min-h-[92vh] sm:min-h-screen flex items-center overflow-hidden">
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
-        <img src="/hero-bg.png" alt="Coffee shop interior" className="w-full h-full object-cover scale-105" />
+        {/* Mobile */}
+        <img
+          src="/hero-bg-mobile.png"
+          alt="Coffee shop interior"
+          className="w-full h-full object-cover scale-105 sm:hidden"
+        />
+        {/* Desktop */}
+        <img
+          src="/hero-bg.png"
+          alt="Coffee shop interior"
+          className="hidden sm:block w-full h-full object-cover scale-105"
+        />
+
         {/* Gradient Overlay */}
         <div className="absolute inset-0 bg-gradient-to-b sm:bg-gradient-to-r from-coffee-dark/95 via-coffee-dark/65 to-transparent" />
       </div>
@@ -173,7 +185,7 @@ function Hero() {
             className="absolute w-1 h-20 bg-white/10 rounded-full animate-steam"
             style={{
               left: `${55 + i * 9}%`,
-              bottom: '18%',
+              bottom: "18%",
               animationDelay: `${i * 1.5}s`,
             }}
           />
@@ -184,24 +196,26 @@ function Hero() {
       <div className="relative z-20 pt-24 sm:pt-28 px-4 sm:px-6 w-full">
         <div
           className={
-            "mx-auto ml-0 w-full max-w-[560px] rounded-[28px] sm:rounded-[34px] border border-white/15 bg-black/25 backdrop-blur-2xl shadow-[0_28px_90px_rgba(0,0,0,0.45)] p-6 sm:p-8 md:p-10 transition-all duration-700 " +
+            "group mx-auto ml-0 w-full max-w-[560px] rounded-[28px] sm:rounded-[34px] border border-white/15 bg-black/25 backdrop-blur-2xl shadow-[0_28px_90px_rgba(0,0,0,0.45)] p-6 sm:p-8 md:p-10 transition-all duration-700 hover:bg-white/5 hover:border-white/25 hover:backdrop-blur-sm active:bg-white/5 active:border-white/25 active:backdrop-blur-sm " +
             (isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6")
           }
-          style={{ transitionDelay: '600ms' }}
+          style={{ transitionDelay: "600ms" }}
         >
-          <p className="font-script text-coffee-gold text-2xl sm:text-3xl md:text-4xl mb-3">Cozy Corner Cafe</p>
+          <p className="font-script text-coffee-gold text-2xl sm:text-3xl md:text-4xl mb-3 transition-colors duration-300 group-hover:text-coffee-dark group-active:text-coffee-dark">
+            Cozy Corner Cafe
+          </p>
 
-          <blockquote className="font-display text-3xl sm:text-4xl lg:text-5xl text-white font-extrabold leading-tight">
+          <blockquote className="font-display text-3xl sm:text-4xl lg:text-5xl text-white font-extrabold leading-tight transition-colors duration-300 group-hover:text-coffee-dark group-active:text-coffee-dark">
             “Sip slowly, breathe deeply —
-            <span className="text-coffee-gold"> your calm corner</span> is here.”
+            <span className="text-coffee-gold transition-colors duration-300 group-hover:text-coffee-dark group-active:text-coffee-dark"> your calm corner</span> is here.”
           </blockquote>
 
-          <p className="mt-5 text-white/70 text-sm sm:text-base leading-relaxed">
+          <p className="mt-5 text-white/70 text-sm sm:text-base leading-relaxed transition-colors duration-300 group-hover:text-coffee-dark/80 group-active:text-coffee-dark/80">
             A quiet escape in Riyadh — espresso warmth, soft conversations, and time that feels unhurried.
           </p>
 
-          <div className="mt-7 h-px bg-gradient-to-r from-transparent via-coffee-gold/60 to-transparent" />
-          <p className="mt-4 text-white/60 text-xs sm:text-sm">
+          <div className="mt-7 h-px bg-gradient-to-r from-transparent via-coffee-gold/60 to-transparent transition-opacity duration-300 group-hover:opacity-40 group-active:opacity-40" />
+          <p className="mt-4 text-white/60 text-xs sm:text-sm transition-colors duration-300 group-hover:text-coffee-dark/70 group-active:text-coffee-dark/70">
             Crafted with passion • Served with perfection
           </p>
         </div>

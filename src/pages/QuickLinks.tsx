@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X, Sparkles, Ticket, ShieldCheck, CalendarDays } from "lucide-react";
-import { FaWhatsapp, FaInstagram, FaFacebook, FaMapMarkerAlt } from "react-icons/fa";
+import { FaWhatsapp, FaInstagram, FaFacebook, FaMapMarkerAlt, FaGlobe } from "react-icons/fa";
 
 const VALIDITY_TEXT = "Valid till 3rd May 11:59 PM";
 
@@ -877,6 +877,24 @@ export default function QuickLinks() {
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-semibold text-white/90">Our Location</div>
                         <div className="mt-1 text-xs text-white/55">Find us at Cozy Corner Cafe, Riyadh</div>
+                      </div>
+                    </div>
+                  </a>
+
+                  <a
+                    href="https://cozy-corner-cafe-gules.vercel.app/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group block rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:scale-[1.01] active:scale-[0.98]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/15 bg-black/20">
+                        <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-sky-400/30 via-violet-500/20 to-emerald-400/25" />
+                        <FaGlobe className="relative h-6 w-6 text-sky-300" aria-hidden="true" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold text-white/90">Visit Our Website</div>
+                        <div className="mt-1 text-xs text-white/55">Open the official Cozy Corner Cafe site</div>
                       </div>
                     </div>
                   </a>

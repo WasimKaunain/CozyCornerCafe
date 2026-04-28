@@ -80,6 +80,13 @@ const OFFER_SEED = [
     description: "Order a hibiscus lemonade and enjoy a free croissant.",
     initialStock: 10,
   },
+  {
+    id: 13,
+    title: "WOW Special – 50% Off Your Total Bill. Valid on cash Payment Only.",
+    description:
+      "\n\nIndulge in your full order and pay only half the amount.\nOffer valid on cash payments only.",
+    initialStock: 30,
+  },
 ] as const;
 
 type OfferId = (typeof OFFER_SEED)[number]["id"];
@@ -292,9 +299,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     `);
 
     // NOTE: Vouchers are UNLIMITED now.
-    // Distribution rule: for each block of 100 vouchers, issue offers proportionally to their initialStock.
+    // Distribution rule: for each block of 130 vouchers, issue offers proportionally to their initialStock.
     // We enforce this by computing a "cap" for each offer based on total vouchers already issued:
-    // cap(offer) = floor((totalIssued + 1) * (offer.initialStock / 100)).
+    // cap(offer) = floor((totalIssued + 1) * (offer.initialStock / 130)).
     // Then we pick from offers that are still under their cap.
 
     // Total vouchers issued so far (unlimited campaign)
@@ -336,7 +343,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Compute which offers are eligible under proportional caps
     const nextTotal = totalIssued + 1;
     const eligible = (offers.length ? offers : (OFFER_SEED as any)).filter((o: Offer) => {
-      const ratio = (o.initialStock ?? 0) / 100;
+      const ratio = (o.initialStock ?? 0) / 130;
       const cap = Math.floor(nextTotal * ratio);
       const used = usedById[o.id] ?? 0;
       return used < cap;
@@ -348,7 +355,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Weight by how far under cap the offer currently is.
       const weighted = eligible
         .map((o) => {
-          const ratio = (o.initialStock ?? 0) / 100;
+          const ratio = (o.initialStock ?? 0) / 130;
           const cap = Math.floor(nextTotal * ratio);
           const used = usedById[o.id] ?? 0;
           return { offer: o, w: Math.max(0, cap - used) };
