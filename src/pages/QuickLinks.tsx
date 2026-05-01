@@ -340,11 +340,6 @@ export default function QuickLinks() {
 
               <div className="grid gap-0 grid-cols-1 md:grid-cols-[1.15fr_0.85fr] max-h-[calc(100dvh-24px)] overflow-y-auto">
                 <div className="p-4 sm:p-7 md:p-10">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-black/20 px-3 py-1.5 text-xs text-white/70">
-                    <Sparkles className="h-4 w-4 text-brand-gold" />
-                    GRAND OPENING OFFERS
-                  </div>
-
                   <h1 className="mt-4 sm:mt-5 text-center font-display text-[28px] sm:text-4xl md:text-5xl font-black leading-tight">
                     Cozy Corner Cafe
                     <span className="block text-brand-gold">Voucher Drop</span>
