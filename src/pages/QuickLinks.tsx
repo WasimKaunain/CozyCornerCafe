@@ -369,17 +369,6 @@ export default function QuickLinks() {
                       <Ticket className="h-5 w-5 text-brand-gold" />
                       Excited for Voucher, one step away
                     </div>
-
-                    <button
-                      onClick={() => {
-                        // reveal the form behind by collapsing the banner
-                        setStep("form");
-                        closeBannerPermanent();
-                      }}
-                      className="inline-flex items-center justify-center rounded-2xl bg-brand-gold px-6 py-4 font-semibold text-brand-navy shadow-[0_18px_55px_rgba(195,160,89,0.35)] transition hover:brightness-110"
-                    >
-                      Continue to links
-                    </button>
                   </div>
 
                   <div className="mt-4 sm:mt-5 text-xs text-white/55">
@@ -782,7 +771,7 @@ export default function QuickLinks() {
                             <input
                               value={name}
                               onChange={(e) => setName(e.target.value)}
-                              placeholder="e.g. Wasim Kaunain"
+                              placeholder="e.g. John Doe"
                               autoComplete="name"
                               className="h-12 rounded-2xl border border-white/12 bg-black/30 px-4 text-white placeholder:text-white/35 outline-none focus:border-brand-gold/60 focus:ring-2 focus:ring-brand-gold/20"
                             />
