@@ -297,7 +297,7 @@ export default function QuickLinks() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0b102e] text-white overflow-hidden">
+    <div className="min-h-screen bg-[#0b102e] text-white overflow-x-hidden w-full max-w-full">
       {/* Background */}
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute -top-24 -left-24 h-[520px] w-[520px] rounded-full bg-brand-gold/20 blur-3xl" />
@@ -313,7 +313,8 @@ export default function QuickLinks() {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed inset-0 z-[100] grid place-items-center px-3 sm:px-4"
+            className="fixed inset-0 z-[100] grid place-items-center px-3 sm:px-4 overflow-x-hidden"
+            style={{ width: "100%", maxWidth: "100%" }}
           >
             <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" />
 
@@ -324,8 +325,9 @@ export default function QuickLinks() {
               transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
               className={
                 "relative w-full overflow-hidden rounded-[24px] sm:rounded-[28px] border border-white/15 bg-white/10 backdrop-blur-2xl shadow-[0_35px_110px_rgba(0,0,0,0.55)] " +
-                "max-w-[94vw] sm:max-w-[92vw] md:max-w-4xl max-h-[calc(100dvh-24px)]"
+                "max-w-full sm:max-w-[92vw] md:max-w-4xl max-h-[calc(100dvh-24px)]"
               }
+              style={{ maxWidth: "100vw" }}
             >
               {/* Close (permanent for this session) */}
               <button
@@ -336,47 +338,85 @@ export default function QuickLinks() {
                 <X className="h-5 w-5" />
               </button>
 
-              <div className="grid gap-0 md:grid-cols-[1.15fr_0.85fr] max-h-[calc(100dvh-24px)] overflow-y-auto">
+              <div className="grid gap-0 grid-cols-1 md:grid-cols-[1.15fr_0.85fr] max-h-[calc(100dvh-24px)] overflow-y-auto">
                 <div className="p-4 sm:p-7 md:p-10">
                   <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-black/20 px-3 py-1.5 text-xs text-white/70">
                     <Sparkles className="h-4 w-4 text-brand-gold" />
                     GRAND OPENING OFFERS
                   </div>
 
-                  <h1 className="mt-4 sm:mt-5 font-display text-[28px] sm:text-4xl md:text-5xl font-black leading-tight">
+                  <h1 className="mt-4 sm:mt-5 text-center font-display text-[28px] sm:text-4xl md:text-5xl font-black leading-tight">
                     Cozy Corner Cafe
                     <span className="block text-brand-gold">Voucher Drop</span>
                   </h1>
 
-                  <p className="mt-3 sm:mt-4 text-white/70 leading-relaxed max-w-xl text-sm sm:text-base">
+                  <p className="mt-3 sm:mt-4 text-white/70 leading-relaxed max-w-xl text-sm sm:text-base mx-auto">
                     Limited-time launch perks. Claim your personalized voucher and keep it safe in WhatsApp.
                   </p>
 
-                  <div className="mt-5 sm:mt-6 grid grid-cols-1 gap-2 sm:gap-3 sm:grid-cols-2">
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <div className="text-brand-gold font-semibold">30% OFF</div>
-                      <div className="text-white/70 text-sm">Selected drinks</div>
-                    </div>
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <div className="text-brand-gold font-semibold">25% OFF</div>
-                      <div className="text-white/70 text-sm">Snacks & desserts</div>
+                  {/* Image carousel moved here (replaces the old 30%/25% tiles) */}
+                  <div className="mt-5 sm:mt-6 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+                    <div className="relative h-44 sm:h-64 md:h-72">
+                      <AnimatePresence mode="wait">
+                        <motion.img
+                          key={drinkIndex}
+                          src={drinkImages[drinkIndex]}
+                          alt="Drink"
+                          initial={{ opacity: 0, x: 18 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -18 }}
+                          transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+                          className="absolute inset-0 h-full w-full object-cover"
+                        />
+                      </AnimatePresence>
+                      <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/10" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
+
+                      <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+                        <div className="flex gap-1">
+                          {drinkImages.map((_, i) => (
+                            <span
+                              key={i}
+                              className={
+                                "h-1.5 w-1.5 rounded-full " +
+                                (i === drinkIndex ? "bg-brand-gold" : "bg-white/25")
+                              }
+                            />
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3">
-                    {/* View-only pill */}
-                    <div className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/18 bg-white/5 px-6 py-4 font-semibold text-white/85">
-                      <Ticket className="h-5 w-5 text-brand-gold" />
-                      Excited for Voucher, one step away
+                  {/* Running text (right-to-left) */}
+                  <div className="mt-3 sm:mt-4 overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+                    <div className="relative">
+                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-brand-gold/15 via-transparent to-brand-gold/15" />
+
+                      <motion.div
+                        className="flex whitespace-nowrap will-change-transform"
+                        initial={{ x: "0%" }}
+                        animate={{ x: "-50%" }}
+                        transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
+                      >
+                        <div className="flex items-center gap-2 py-2 px-3 sm:py-2.5 sm:px-4 text-[10px] sm:text-xs font-semibold tracking-wide text-white/85">
+                          <span className="inline-flex items-center rounded-full border border-brand-gold/30 bg-brand-gold/15 px-2 py-0.5 text-[10px] font-extrabold text-brand-gold">
+                            HOT
+                          </span>
+                          <span className="text-white/90">30% off on any drink and 25% off on any snacks.</span>
+                          <span className="text-white/30">•</span>
+                          <span className="text-white/90">30% off on any drink and 25% off on any snacks.</span>
+                          <span className="text-white/30">•</span>
+                          <span className="text-white/90">30% off on any drink and 25% off on any snacks.</span>
+                          <span className="text-white/30">•</span>
+                        </div>
+                      </motion.div>
                     </div>
                   </div>
 
-                  <div className="mt-4 sm:mt-5 text-xs text-white/55">
-                    By claiming, you agree we can contact you on WhatsApp with your voucher.
-                  </div>
                 </div>
 
-                {/* Right part: offer live + drink carousel */}
+                {/* Right part: offer live + details (kept) */}
                 <div className="p-4 sm:p-7 md:p-10 border-t md:border-t-0 md:border-l border-white/10">
                   <div className="rounded-3xl border border-white/10 bg-black/20 p-4 sm:p-5">
                     <div className="flex items-start gap-3">
@@ -384,7 +424,7 @@ export default function QuickLinks() {
                         <ShieldCheck className="h-5 w-5 text-brand-gold" />
                       </div>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <div className="font-semibold">Offer is LIVE</div>
                           <span className="inline-flex items-center rounded-full border border-emerald-300/25 bg-emerald-300/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-200">
                             Running now
@@ -433,45 +473,10 @@ export default function QuickLinks() {
                             setStep("form");
                             closeBannerPermanent();
                           }}
-                          className="inline-flex items-center justify-center rounded-2xl bg-brand-gold px-5 py-3.5 font-extrabold text-brand-navy shadow-[0_18px_55px_rgba(195,160,89,0.28)] transition hover:brightness-110"
+                          className="w-full inline-flex items-center justify-center rounded-2xl bg-brand-gold px-5 py-3.5 font-extrabold text-brand-navy shadow-[0_18px_55px_rgba(195,160,89,0.28)] transition hover:brightness-110"
                         >
                           Join Mega Voucher Drop
                         </button>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 sm:mt-5">
-                      <div className="mt-2 sm:mt-3 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-                        <div className="relative h-44 sm:h-64 md:h-72">
-                          <AnimatePresence mode="wait">
-                            <motion.img
-                              key={drinkIndex}
-                              src={drinkImages[drinkIndex]}
-                              alt="Drink"
-                              initial={{ opacity: 0, x: 18 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              exit={{ opacity: 0, x: -18 }}
-                              transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-                              className="absolute inset-0 h-full w-full object-cover"
-                            />
-                          </AnimatePresence>
-                          <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/10" />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-
-                          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
-                            <div className="flex gap-1">
-                              {drinkImages.map((_, i) => (
-                                <span
-                                  key={i}
-                                  className={
-                                    "h-1.5 w-1.5 rounded-full " +
-                                    (i === drinkIndex ? "bg-brand-gold" : "bg-white/25")
-                                  }
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        </div>
                       </div>
                     </div>
                   </div>
