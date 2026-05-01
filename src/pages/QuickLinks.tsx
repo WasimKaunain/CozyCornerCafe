@@ -352,18 +352,46 @@ export default function QuickLinks() {
                     Limited-time launch perks. Claim your personalized voucher and keep it safe in WhatsApp.
                   </p>
 
-                  <div className="mt-5 sm:mt-6 grid grid-cols-1 gap-2 sm:gap-3 sm:grid-cols-2">
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <div className="text-brand-gold font-semibold">30% OFF</div>
-                      <div className="text-white/70 text-sm">Selected drinks</div>
-                    </div>
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <div className="text-brand-gold font-semibold">25% OFF</div>
-                      <div className="text-white/70 text-sm">Snacks & desserts</div>
+                  {/* Compact moving highlight line (replaces big offer tiles to save space) */}
+                  <div className="mt-5 sm:mt-6 overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+                    <div className="relative">
+                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-brand-gold/15 via-transparent to-brand-gold/15" />
+
+                      <motion.div
+                        className="flex whitespace-nowrap"
+                        initial={{ x: "0%" }}
+                        animate={{ x: "-50%" }}
+                        transition={{ duration: 16, repeat: Infinity, ease: "linear" }}
+                      >
+                        <div className="flex items-center gap-3 py-2.5 px-4 text-[11px] sm:text-xs font-semibold tracking-wide text-white/80">
+                          <span className="inline-flex items-center rounded-full border border-brand-gold/30 bg-brand-gold/15 px-2 py-0.5 text-[10px] sm:text-[11px] font-extrabold text-brand-gold">
+                            LIVE
+                          </span>
+                          <span className="text-white/85">30% OFF selected drinks</span>
+                          <span className="text-white/30">•</span>
+                          <span className="text-white/85">25% OFF snacks & desserts</span>
+                          <span className="text-white/30">•</span>
+                          <span className="text-white/85">Limited-time perks</span>
+                          <span className="text-white/30">•</span>
+                        </div>
+
+                        {/* duplicate for seamless loop */}
+                        <div className="flex items-center gap-3 py-2.5 px-4 text-[11px] sm:text-xs font-semibold tracking-wide text-white/80">
+                          <span className="inline-flex items-center rounded-full border border-brand-gold/30 bg-brand-gold/15 px-2 py-0.5 text-[10px] sm:text-[11px] font-extrabold text-brand-gold">
+                            LIVE
+                          </span>
+                          <span className="text-white/85">30% OFF selected drinks</span>
+                          <span className="text-white/30">•</span>
+                          <span className="text-white/85">25% OFF snacks & desserts</span>
+                          <span className="text-white/30">•</span>
+                          <span className="text-white/85">Limited-time perks</span>
+                          <span className="text-white/30">•</span>
+                        </div>
+                      </motion.div>
                     </div>
                   </div>
 
-                  <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3">
+                  <div className="mt-6 sm:mt-7 flex flex-col sm:flex-row gap-3">
                     {/* View-only pill */}
                     <div className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/18 bg-white/5 px-6 py-4 font-semibold text-white/85">
                       <Ticket className="h-5 w-5 text-brand-gold" />
