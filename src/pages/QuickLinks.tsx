@@ -57,23 +57,6 @@ type CreatedVoucher = {
   };
 };
 
-function pad2(n: number) {
-  return String(Math.max(0, n)).padStart(2, "0");
-}
-
-function getCountdownParts(target: Date) {
-  const now = Date.now();
-  const diffMs = Math.max(0, target.getTime() - now);
-  const totalSec = Math.floor(diffMs / 1000);
-
-  const days = Math.floor(totalSec / (3600 * 24));
-  const hours = Math.floor((totalSec % (3600 * 24)) / 3600);
-  const minutes = Math.floor((totalSec % 3600) / 60);
-  const seconds = totalSec % 60;
-
-  return { days, hours, minutes, seconds, done: diffMs <= 0 };
-}
-
 function normalizeWa(input: string) {
   const raw = String(input ?? "").trim().replace(/\s+/g, "");
   // keep leading + if present, strip other non-digits
@@ -155,23 +138,12 @@ export default function QuickLinks() {
   const [bannerOpen, setBannerOpen] = useState(true);
   const [step, setStep] = useState<"start" | "form" | "result">("start");
 
-  // May 1 countdown (local time)
-  const countdownTarget = useMemo(() => new Date(2026, 4, 1, 0, 0, 0), []);
-  const [countdown, setCountdown] = useState(() => getCountdownParts(countdownTarget));
-
   // drink carousel (uses same images as menu section)
   const drinkImages = useMemo(
     () => ["/menu-1.png", "/menu-2.png", "/menu-3.png", "/menu-4.png", "/menu-5.png"],
     []
   );
   const [drinkIndex, setDrinkIndex] = useState(0);
-
-  useEffect(() => {
-    const t = window.setInterval(() => {
-      setCountdown(getCountdownParts(countdownTarget));
-    }, 1000);
-    return () => window.clearInterval(t);
-  }, [countdownTarget]);
 
   useEffect(() => {
     if (!bannerOpen) return;
@@ -415,31 +387,68 @@ export default function QuickLinks() {
                   </div>
                 </div>
 
-                {/* Right part: countdown + drink carousel */}
+                {/* Right part: offer live + drink carousel */}
                 <div className="p-4 sm:p-7 md:p-10 border-t md:border-t-0 md:border-l border-white/10">
                   <div className="rounded-3xl border border-white/10 bg-black/20 p-4 sm:p-5">
-                    <div className="flex items-center gap-3">
-                      <div className="h-11 w-11 rounded-2xl bg-brand-gold/20 border border-brand-gold/30 flex items-center justify-center">
+                    <div className="flex items-start gap-3">
+                      <div className="h-11 w-11 rounded-2xl bg-brand-gold/20 border border-brand-gold/30 flex items-center justify-center shrink-0">
                         <ShieldCheck className="h-5 w-5 text-brand-gold" />
                       </div>
-                      <div>
-                        <div className="font-semibold">Offer starts in</div>
-                        <div className="text-xs text-white/60">Countdown to 1st May</div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <div className="font-semibold">Offer is LIVE</div>
+                          <span className="inline-flex items-center rounded-full border border-emerald-300/25 bg-emerald-300/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-200">
+                            Running now
+                          </span>
+                        </div>
+                        <div className="mt-1 text-xs text-white/60">
+                          Mega Voucher Drop is running till <span className="font-bold text-white/80">3rd May</span>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="mt-4 sm:mt-5 grid grid-cols-4 gap-2">
-                      {[ 
-                        { label: "Days", value: String(countdown.days) },
-                        { label: "Hours", value: pad2(countdown.hours) },
-                        { label: "Min", value: pad2(countdown.minutes) },
-                        { label: "Sec", value: pad2(countdown.seconds) },
-                      ].map((p) => (
-                        <div key={p.label} className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center">
-                          <div className="font-mono text-xl font-bold text-brand-gold leading-none">{p.value}</div>
-                          <div className="mt-1 text-[11px] text-white/55">{p.label}</div>
+                    <div className="mt-4 sm:mt-5 rounded-3xl border border-white/10 bg-white/5 p-4">
+                      <div className="text-[11px] uppercase tracking-wider text-white/55">Join the Mega Voucher Drop</div>
+                      <div className="mt-2 text-sm text-white/85 leading-relaxed">
+                        Claim your <span className="font-extrabold text-brand-gold">official voucher</span>, keep it safe in WhatsApp, and show it at the counter.
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-black/20 px-3 py-1 text-xs text-white/75">
+                          <CalendarDays className="h-4 w-4 text-brand-gold" />
+                          {VALIDITY_TEXT}
+                        </span>
+                        <span className="inline-flex items-center rounded-full border border-white/12 bg-black/20 px-3 py-1 text-xs text-white/70">
+                          Limited-time perks
+                        </span>
+                      </div>
+
+                      <div className="mt-4 grid gap-2">
+                        <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                          <div className="text-[11px] uppercase tracking-wider text-white/55">How it works</div>
+                          <ol className="mt-2 grid gap-1 text-[12px] text-white/70">
+                            <li>
+                              <span className="font-bold text-white/85">1)</span> Enter your details
+                            </li>
+                            <li>
+                              <span className="font-bold text-white/85">2)</span> Get your voucher + offer
+                            </li>
+                            <li>
+                              <span className="font-bold text-white/85">3)</span> Send it to WhatsApp (required)
+                            </li>
+                          </ol>
                         </div>
-                      ))}
+
+                        <button
+                          onClick={() => {
+                            setStep("form");
+                            closeBannerPermanent();
+                          }}
+                          className="inline-flex items-center justify-center rounded-2xl bg-brand-gold px-5 py-3.5 font-extrabold text-brand-navy shadow-[0_18px_55px_rgba(195,160,89,0.28)] transition hover:brightness-110"
+                        >
+                          Join Mega Voucher Drop
+                        </button>
+                      </div>
                     </div>
 
                     <div className="mt-4 sm:mt-5">
@@ -479,7 +488,7 @@ export default function QuickLinks() {
                   </div>
 
                   <div className="mt-3 sm:mt-4 text-[11px] text-white/45">
-                    Tip: Tap “Continue to links” to fill your details.
+                    Tip: Tap “Join Mega Voucher Drop” to claim your voucher.
                   </div>
                 </div>
               </div>
