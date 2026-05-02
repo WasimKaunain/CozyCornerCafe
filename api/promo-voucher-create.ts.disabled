@@ -1,0 +1,6 @@
+This endpoint has been superseded by `api/voucher-create.ts` which now supports an optional `promoCode`.
+
+It is intentionally disabled to reduce the number of deployed serverless functions.
+
+Previously: created promo vouchers.
+Now: use POST /api/voucher-create with { name, whatsapp, promoCode }.

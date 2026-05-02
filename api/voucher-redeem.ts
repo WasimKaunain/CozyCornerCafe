@@ -8,6 +8,24 @@ const bodySchema = z.object({
   code: z.string().trim().min(1).max(64),
 });
 
+function extractCode(input: string) {
+  let normalized = String(input ?? "").trim();
+  if (normalized.toLowerCase().includes("http")) {
+    try {
+      const u = new URL(normalized);
+      const qp = u.searchParams.get("code");
+      if (qp) normalized = qp;
+      else {
+        const seg = u.pathname.split("/").filter(Boolean).pop();
+        if (seg) normalized = seg;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return normalized.trim().toUpperCase();
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   withCors(res);
 
@@ -22,30 +40,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
   }
 
-  const code = parsed.data.code.toUpperCase();
+  const normalizedCode = extractCode(parsed.data.code);
 
   try {
     const pool = getPool();
 
-    // If QR contains a full URL, try to extract ?code=... or last path segment
-    let normalizedCode = code;
-    if (normalizedCode.includes("http")) {
-      try {
-        const u = new URL(normalizedCode);
-        const qp = u.searchParams.get("code");
-        if (qp) normalizedCode = qp;
-        else {
-          const seg = u.pathname.split("/").filter(Boolean).pop();
-          if (seg) normalizedCode = seg;
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    normalizedCode = normalizedCode.trim().toUpperCase();
-
-    // Atomic redeem: set used_at only if currently unused and not expired.
+    // 1) Try normal vouchers first (atomic redeem)
     const r = await pool.query(
       `UPDATE vouchers
        SET used_at = NOW()
@@ -70,7 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // Not redeemed: find reason
+    // Look up normal voucher to give correct reason
     const lookup = await pool.query(
       `SELECT code, offer_title, offer_description, validity_end, used_at
        FROM vouchers
@@ -79,33 +79,125 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
 
     const row = lookup.rows?.[0];
-    if (!row) return res.status(404).json({ ok: false, status: "NOT_FOUND", error: "Voucher not found" });
+    if (row) {
+      if (row.used_at) {
+        return res.status(409).json({
+          ok: false,
+          status: "ALREADY_USED",
+          error: "Voucher already used",
+          voucher: {
+            code: row.code,
+            offer: { title: row.offer_title, description: row.offer_description },
+            validityEnd: row.validity_end,
+            usedAt: row.used_at,
+          },
+        });
+      }
 
-    if (row.used_at) {
+      const expired = new Date(row.validity_end).getTime() <= Date.now();
+      if (expired) {
+        return res.status(410).json({
+          ok: false,
+          status: "EXPIRED",
+          error: "Voucher expired",
+          voucher: {
+            code: row.code,
+            offer: { title: row.offer_title, description: row.offer_description },
+            validityEnd: row.validity_end,
+            usedAt: row.used_at,
+          },
+        });
+      }
+
+      return res.status(400).json({ ok: false, status: "NOT_REDEEMED", error: "Voucher not redeemed" });
+    }
+
+    // 2) Not a normal voucher: attempt promo voucher redeem (atomic)
+    const pr = await pool.query(
+      `UPDATE promo_voucher
+       SET used_at = NOW()
+       WHERE voucher_id = $1
+         AND used_at IS NULL
+         AND validity_end > NOW()
+       RETURNING voucher_id, validity_end, used_at`,
+      [normalizedCode]
+    );
+
+    if (pr.rowCount === 1) {
+      const prow = pr.rows[0];
+
+      const offerRes = await pool.query(
+        `SELECT pc.offer_title, pc.description
+         FROM promo_voucher pv
+         JOIN promo_code pc ON pc.id = pv.promo_id
+         WHERE pv.voucher_id = $1
+         LIMIT 1`,
+        [normalizedCode]
+      );
+      const offerRow = offerRes.rows?.[0];
+
+      return res.status(200).json({
+        ok: true,
+        status: "REDEEMED",
+        voucher: {
+          code: String(prow.voucher_id),
+          offer: {
+            title: offerRow?.offer_title == null ? undefined : String(offerRow.offer_title),
+            description: offerRow?.description == null ? undefined : String(offerRow.description),
+          },
+          validityEnd: prow.validity_end,
+          usedAt: prow.used_at,
+          meta: { kind: "PROMO" },
+        },
+      });
+    }
+
+    // Not redeemed: find reason for promo voucher
+    const plook = await pool.query(
+      `SELECT pv.voucher_id, pv.validity_end, pv.used_at, pc.offer_title, pc.description
+       FROM promo_voucher pv
+       JOIN promo_code pc ON pc.id = pv.promo_id
+       WHERE pv.voucher_id = $1
+       LIMIT 1`,
+      [normalizedCode]
+    );
+
+    const prow = plook.rows?.[0];
+    if (!prow) return res.status(404).json({ ok: false, status: "NOT_FOUND", error: "Voucher not found" });
+
+    if (prow.used_at) {
       return res.status(409).json({
         ok: false,
         status: "ALREADY_USED",
         error: "Voucher already used",
         voucher: {
-          code: row.code,
-          offer: { title: row.offer_title, description: row.offer_description },
-          validityEnd: row.validity_end,
-          usedAt: row.used_at,
+          code: String(prow.voucher_id),
+          offer: {
+            title: prow.offer_title == null ? undefined : String(prow.offer_title),
+            description: prow.description == null ? undefined : String(prow.description),
+          },
+          validityEnd: prow.validity_end,
+          usedAt: prow.used_at,
+          meta: { kind: "PROMO" },
         },
       });
     }
 
-    const expired = new Date(row.validity_end).getTime() <= Date.now();
+    const expired = new Date(prow.validity_end).getTime() <= Date.now();
     if (expired) {
       return res.status(410).json({
         ok: false,
         status: "EXPIRED",
         error: "Voucher expired",
         voucher: {
-          code: row.code,
-          offer: { title: row.offer_title, description: row.offer_description },
-          validityEnd: row.validity_end,
-          usedAt: row.used_at,
+          code: String(prow.voucher_id),
+          offer: {
+            title: prow.offer_title == null ? undefined : String(prow.offer_title),
+            description: prow.description == null ? undefined : String(prow.description),
+          },
+          validityEnd: prow.validity_end,
+          usedAt: prow.used_at,
+          meta: { kind: "PROMO" },
         },
       });
     }

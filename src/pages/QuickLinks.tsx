@@ -4,6 +4,7 @@ import { X, Sparkles, Ticket, ShieldCheck, CalendarDays } from "lucide-react";
 import { FaWhatsapp, FaInstagram, FaFacebook, FaMapMarkerAlt, FaGlobe } from "react-icons/fa";
 
 const VALIDITY_TEXT = "Valid till 3rd May 11:59 PM";
+const INSTA_URL = "https://www.instagram.com/cozycornersa.cafe/?hl=en";
 
 function buildWaText(opts: {
   name: string;
@@ -160,6 +161,16 @@ export default function QuickLinks() {
   const [name, setName] = useState("");
   const [whatsapp, setWhatsapp] = useState("+966");
 
+  // Promo flow
+  const [promoCode, setPromoCode] = useState("");
+  const [promoStatus, setPromoStatus] = useState<"idle" | "checking" | "valid" | "invalid">("idle");
+  const [promoErr, setPromoErr] = useState<string | null>(null);
+  const [promoApplied, setPromoApplied] = useState<
+    | null
+    | { id: number; influencerName: string; promoCode: string; offerTitle: string; description?: string | null }
+  >(null);
+  const [igUnlocked, setIgUnlocked] = useState(false);
+
   const [formTouched, setFormTouched] = useState(false);
 
   // Voucher generation temporarily disabled
@@ -217,6 +228,54 @@ export default function QuickLinks() {
     setVoucherModalOpen(false);
   }
 
+  useEffect(() => {
+    if (step !== "form") return;
+    // reset promo gating when entering the form
+    setPromoStatus("idle");
+    setPromoErr(null);
+    setPromoApplied(null);
+    setIgUnlocked(false);
+  }, [step]);
+
+  useEffect(() => {
+    const code = promoCode.trim();
+    if (!code) {
+      setPromoStatus("idle");
+      setPromoErr(null);
+      setPromoApplied(null);
+      setIgUnlocked(false);
+      return;
+    }
+
+    // debounce promo validation
+    setPromoStatus("checking");
+    setPromoErr(null);
+    setPromoApplied(null);
+    setIgUnlocked(false);
+
+    const t = window.setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/promo-validate?code=${encodeURIComponent(code)}`);
+        const data = await r.json().catch(() => ({}));
+
+        if (!r.ok) {
+          setPromoStatus("invalid");
+          setPromoErr(data?.error ?? "Invalid promo code");
+          return;
+        }
+
+        setPromoStatus("valid");
+        setPromoErr(null);
+        setPromoApplied(data?.promo ?? null);
+      } catch {
+        setPromoStatus("invalid");
+        setPromoErr("Unable to validate promo code. Please try again.");
+      }
+    }, 450);
+
+    return () => window.clearTimeout(t);
+  }, [promoCode, step]);
+
   async function submit() {
     if (loading) return;
     setError(null);
@@ -236,13 +295,33 @@ export default function QuickLinks() {
       return;
     }
 
+    const promoTrim = promoCode.trim();
+    const wantsPromo = promoTrim.length > 0;
+
+    if (wantsPromo) {
+      if (promoStatus !== "valid" || !promoApplied) {
+        setError("Please enter a valid promo code or leave it empty.");
+        return;
+      }
+      if (!igUnlocked) {
+        setError("Follow @cozycornercafe on Instagram to unlock this offer.");
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
-      const r = await fetch("/api/voucher-create", {
+      // Decide endpoint: unified backend uses /api/voucher-create for both normal + promo
+      const endpoint = "/api/voucher-create";
+
+      const body: any = { name, whatsapp: waCheck.value };
+      if (wantsPromo) body.promoCode = promoCode.trim();
+
+      const r = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: nm, whatsapp: waCheck.value }),
+        body: JSON.stringify(body),
       });
 
       const data = await r.json();
@@ -259,11 +338,9 @@ export default function QuickLinks() {
       const createdData = data as CreatedVoucher;
       setCreated(createdData);
 
-      // Prefer backend-provided qrUrl (also stored in DB)
       if (createdData.voucher.qrUrl) {
         setQrUrl(createdData.voucher.qrUrl);
       } else {
-        // Fallback: generate QR URL on the fly
         const qrRes = await fetch(`/api/voucher-qr?code=${encodeURIComponent(createdData.voucher.code)}`);
         const qrData = await qrRes.json();
         if (qrRes.ok) setQrUrl(qrData.qrUrl);
@@ -814,6 +891,74 @@ export default function QuickLinks() {
                             {waUsedError && <span className="text-[11px] text-red-200">{waUsedError}</span>}
                           </label>
 
+                          {/* Promo code (optional) */}
+                          <label className="grid gap-2">
+                            <span className="text-xs font-semibold tracking-wide text-white/70">Promo Code (Optional)</span>
+                            <div className="relative">
+                              <input
+                                value={promoCode}
+                                onChange={(e) => setPromoCode(e.target.value)}
+                                placeholder="e.g. CREATOR10"
+                                autoComplete="off"
+                                className="h-12 w-full rounded-2xl border border-white/12 bg-black/30 px-4 pr-12 text-white placeholder:text-white/35 outline-none focus:border-brand-gold/60 focus:ring-2 focus:ring-brand-gold/20"
+                              />
+                              <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                                {promoStatus === "valid" ? (
+                                  <div className="h-5 w-5 rounded-full bg-emerald-400/20 border border-emerald-300/30 grid place-items-center">
+                                    <span className="text-emerald-200 text-[12px] font-black">✓</span>
+                                  </div>
+                                ) : promoStatus === "checking" ? (
+                                  <div className="h-5 w-5 rounded-full border border-white/25 animate-pulse" />
+                                ) : null}
+                              </div>
+                            </div>
+
+                            {promoCode.trim().length > 0 && promoStatus === "valid" ? (
+                              <div className="text-[11px] text-emerald-200">
+                                Promo code applied successfully.
+                              </div>
+                            ) : null}
+
+                            {promoCode.trim().length > 0 && promoStatus === "invalid" ? (
+                              <div className="text-[11px] text-red-200">{promoErr ?? "Invalid promo code."}</div>
+                            ) : null}
+
+                            {promoApplied && promoStatus === "valid" ? (
+                              <div className="mt-1 text-[11px] text-white/55">
+                                Offer: <span className="font-semibold text-white/80">{promoApplied.offerTitle}</span>
+                              </div>
+                            ) : null}
+
+                            {/* Instagram unlock gate */}
+                            {promoApplied && promoStatus === "valid" ? (
+                              <div className="mt-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="text-[12px] text-white/80">
+                                    Follow <span className="font-extrabold">@cozycornercafe</span> to unlock this offer
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      window.open(INSTA_URL, "_blank", "noopener,noreferrer");
+                                      setIgUnlocked(true);
+                                    }}
+                                    className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/12 bg-black/20 transition hover:bg-black/30"
+                                    aria-label="Open Instagram"
+                                  >
+                                    <FaInstagram className="h-5 w-5 text-[#E1306C]" aria-hidden="true" />
+                                  </button>
+                                </div>
+
+                                {igUnlocked ? (
+                                  <div className="mt-2 text-[11px] text-emerald-200">Unlocked — you can now submit.</div>
+                                ) : (
+                                  <div className="mt-2 text-[11px] text-white/55">After opening Instagram, come back and submit.</div>
+                                )}
+                              </div>
+                            ) : null}
+                          </label>
+
                           {error && (
                             <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
                               {error}
@@ -824,7 +969,10 @@ export default function QuickLinks() {
                             <button
                               type="button"
                               onClick={submit}
-                              disabled={loading}
+                              disabled={
+                                loading ||
+                                (promoCode.trim().length > 0 && (!igUnlocked || promoStatus !== "valid"))
+                              }
                               className="w-full rounded-2xl bg-brand-gold text-brand-navy px-5 py-4 font-extrabold shadow-[0_18px_55px_rgba(195,160,89,0.28)] disabled:opacity-60 transition hover:brightness-110"
                             >
                               {loading ? "Claiming..." : "Claim Official Voucher"}

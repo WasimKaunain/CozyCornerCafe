@@ -1,0 +1,6 @@
+This endpoint has been superseded by `api/voucher-validate.ts` which now validates both normal vouchers and promo vouchers.
+
+It is intentionally disabled to reduce the number of deployed serverless functions.
+
+Previously: validated promo vouchers by voucher_id.
+Now: use POST /api/voucher-validate with { code }.

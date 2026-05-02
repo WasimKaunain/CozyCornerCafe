@@ -139,6 +139,7 @@ const bodySchema = z.object({
         return false;
       }
     }, "Invalid WhatsApp number. Use +91XXXXXXXXXX or +966XXXXXXXXX / +9660XXXXXXXXX"),
+  promoCode: z.string().trim().max(48).optional().or(z.literal("")),
 });
 
 /**
@@ -201,8 +202,14 @@ function voucherCode() {
   return nano();
 }
 
+// 16-char id stored as plain TEXT in DB; QR encodes this exact string (no hashing/encoding).
+const promoVoucherId = customAlphabet("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 16);
+function generatePromoVoucherId() {
+  return promoVoucherId();
+}
+
 function buildQrUrlForCode(code: string) {
-  // Counter-scan QR: encode only voucher code
+  // Counter-scan QR: encode only voucher code (or voucher_id for promo)
   return `https://api.qrserver.com/v1/create-qr-code/?size=420x420&data=${encodeURIComponent(code)}`;
 }
 
@@ -231,8 +238,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const { name, whatsapp } = parsed.data;
-
-    // `whatsapp` is already normalized by schema
+    const promoCodeInput = String(parsed.data.promoCode ?? "").trim();
+    const wantsPromo = promoCodeInput.length > 0;
 
     const pool = getPool();
 
@@ -266,8 +273,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       CREATE INDEX IF NOT EXISTS idx_vouchers_customer_id ON vouchers(customer_id);
     `);
 
+    // Promo tables migrations (idempotent). We run this unconditionally so deployments don't depend on first promo request.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS promo_code (
+        id BIGSERIAL PRIMARY KEY,
+        influencer_name TEXT NOT NULL,
+        promo_code TEXT NOT NULL UNIQUE,
+        offer_title TEXT NOT NULL,
+        description TEXT,
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_promo_code_code ON promo_code(promo_code);
+
+      CREATE TABLE IF NOT EXISTS promo_voucher (
+        id BIGSERIAL PRIMARY KEY,
+        customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        promo_id BIGINT NOT NULL REFERENCES promo_code(id) ON DELETE RESTRICT,
+        promo_code TEXT NOT NULL,
+        voucher_id TEXT NOT NULL,
+        qr_url TEXT,
+        validity_end TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        used_at TIMESTAMPTZ
+      );
+
+      ALTER TABLE promo_voucher ADD COLUMN IF NOT EXISTS promo_code TEXT;
+      ALTER TABLE promo_voucher ADD COLUMN IF NOT EXISTS voucher_id TEXT;
+      ALTER TABLE promo_voucher ADD COLUMN IF NOT EXISTS qr_url TEXT;
+
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_promo_voucher_voucher_id ON promo_voucher(voucher_id);
+      CREATE INDEX IF NOT EXISTS idx_promo_voucher_customer_id ON promo_voucher(customer_id);
+      CREATE INDEX IF NOT EXISTS idx_promo_voucher_promo_id ON promo_voucher(promo_id);
+    `);
+
     // ---- Schema migrations (idempotent) ----
-    // Older DBs may already have `vouchers` created without offer columns.
     await pool.query(`
       ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS offer_id INT;
       ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS offer_title TEXT;
@@ -277,7 +318,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       CREATE INDEX IF NOT EXISTS idx_vouchers_offer_id ON vouchers(offer_id);
     `);
 
-    // Seed offers (idempotent)
+    // Seed offers (idempotent) - only for normal vouchers
     for (const o of OFFER_SEED) {
       await pool.query(
         `INSERT INTO offers (id, title, description, initial_stock)
@@ -290,7 +331,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
     }
 
-    // After seeding offers, backfill any NULL offer columns (only for legacy rows, if any)
     await pool.query(`
       UPDATE vouchers
       SET offer_id = COALESCE(offer_id, 1),
@@ -298,16 +338,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           offer_description = COALESCE(offer_description, 'Buy any drink and get another drink free of equal or lesser value.')
       WHERE offer_id IS NULL OR offer_title IS NULL OR offer_description IS NULL;
     `);
-
-    // NOTE: Vouchers are UNLIMITED now.
-    // Distribution rule: for each block of 130 vouchers, issue offers proportionally to their initialStock.
-    // We enforce this by computing a "cap" for each offer based on total vouchers already issued:
-    // cap(offer) = floor((totalIssued + 1) * (offer.initialStock / 130)).
-    // Then we pick from offers that are still under their cap.
-
-    // Total vouchers issued so far (unlimited campaign)
-    const totalRes = await pool.query(`SELECT COUNT(*)::int AS cnt FROM vouchers`);
-    const totalIssued = Number(totalRes.rows?.[0]?.cnt ?? 0);
 
     // Insert customer (WhatsApp must be unique)
     let customerId: number;
@@ -324,7 +354,74 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw err;
     }
 
-    // Weighted offer selection based on proportional caps per 100 vouchers
+    const validEnd = validityEnd();
+
+    // ===== PROMO PATH (same endpoint) =====
+    if (wantsPromo) {
+      const promoCode = promoCodeInput.toUpperCase();
+
+      const promoRes = await pool.query(
+        `SELECT id, offer_title, description
+         FROM promo_code
+         WHERE promo_code = $1 AND active = TRUE
+         LIMIT 1`,
+        [promoCode]
+      );
+
+      const promo = promoRes.rows?.[0];
+      if (!promo) {
+        return res.status(404).json({ error: "Invalid promo code" });
+      }
+
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const voucherId = generatePromoVoucherId();
+        if (!voucherId) continue;
+
+        const qrUrl = buildQrUrlForCode(voucherId);
+
+        try {
+          const vRes = await pool.query(
+            `INSERT INTO promo_voucher (customer_id, promo_id, promo_code, voucher_id, qr_url, validity_end)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             RETURNING id, voucher_id, qr_url, validity_end, created_at`,
+            [customerId, Number(promo.id), promoCode, voucherId, qrUrl, validEnd]
+          );
+
+          const row = vRes.rows[0];
+
+          return res.status(200).json({
+            ok: true,
+            voucher: {
+              id: Number(row.id),
+              code: String(row.voucher_id),
+              qrUrl: row.qr_url ? String(row.qr_url) : undefined,
+              validityEnd: row.validity_end,
+              createdAt: row.created_at,
+              offer: {
+                id: Number(promo.id),
+                code: Number(promo.id),
+                title: String(promo.offer_title),
+                description: promo.description == null ? undefined : String(promo.description),
+              },
+              meta: { kind: "PROMO" },
+            },
+            customer: { id: customerId, name, whatsapp },
+          });
+        } catch (err: any) {
+          if (err?.code === "23505") continue; // voucher_id collision
+          throw err;
+        }
+      }
+
+      return res.status(500).json({ error: "Failed to generate unique promo voucher" });
+    }
+
+    // ===== NORMAL PATH =====
+
+    // Total vouchers issued so far (unlimited campaign)
+    const totalRes = await pool.query(`SELECT COUNT(*)::int AS cnt FROM vouchers`);
+    const totalIssued = Number(totalRes.rows?.[0]?.cnt ?? 0);
+
     const offersRes = await pool.query(
       `SELECT id, title, description, initial_stock FROM offers ORDER BY id ASC`
     );
@@ -341,7 +438,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const usedById: Record<number, number> = {};
     for (const r of countsRes.rows) usedById[Number(r.offer_id)] = Number(r.cnt);
 
-    // Compute which offers are eligible under proportional caps
     const nextTotal = totalIssued + 1;
     const eligible = (offers.length ? offers : (OFFER_SEED as any)).filter((o: Offer) => {
       const ratio = (o.initialStock ?? 0) / 130;
@@ -350,138 +446,102 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return used < cap;
     });
 
-    // If rounding makes nothing eligible (often when nextTotal is small), fall back to the original remaining-stock weighting.
     let offer: Offer | null = null;
-      
-    // ================= SAFE SELECTION =================
-      
-    // Step 1: Try controlled distribution
+
     if (eligible.length > 0) {
       offer = eligible[Math.floor(Math.random() * eligible.length)];
     } else {
-      // Step 2: Weighted fallback (based only on initialStock)
-    
       const baseOffers = offers.length ? offers : (OFFER_SEED as any);
-    
-      const totalWeight = baseOffers.reduce(
-        (s: number, o: Offer) => s + (o.initialStock || 0),
-        0
-      );
-    
+      const totalWeight = baseOffers.reduce((s: number, o: Offer) => s + (o.initialStock || 0), 0);
+
       if (totalWeight > 0) {
         let r = Math.random() * totalWeight;
-      
         for (const o of baseOffers) {
-          r -= (o.initialStock || 0);
+          r -= o.initialStock || 0;
           if (r <= 0) {
             offer = o;
             break;
           }
         }
       }
-    
-      // Step 3: Absolute fallback (never fail)
-      if (!offer) {
-        offer = baseOffers[0];
+
+      if (!offer) offer = baseOffers[0];
+    }
+
+    if (!offer) {
+      const fallback = offers.length ? offers[0] : OFFER_SEED[0];
+      offer = fallback;
+    }
+
+    // Insert voucher (retry on code collisions)
+    let code = "";
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      code = voucherCode();
+      if (!code) continue;
+
+      const qrUrl = buildQrUrlForCode(code);
+
+      try {
+        const voucherRes = await pool.query(
+          `INSERT INTO vouchers (customer_id, code, validity_end, offer_id, offer_title, offer_description, qr_url)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING id, code, validity_end, created_at, offer_id, offer_title, offer_description, qr_url`,
+          [customerId, code, validEnd, offer.id, offer.title, offer.description, qrUrl]
+        );
+
+        const row = voucherRes.rows[0];
+
+        return res.status(200).json({
+          ok: true,
+          voucher: {
+            id: row.id,
+            code: row.code,
+            qrUrl: row.qr_url,
+            validityEnd: row.validity_end,
+            createdAt: row.created_at,
+            offer: {
+              id: row.offer_id,
+              code: row.offer_id,
+              title: row.offer_title,
+              description: row.offer_description,
+            },
+          },
+          customer: { id: customerId, name, whatsapp },
+        });
+      } catch (err: any) {
+        const pgCode = err?.code;
+        if (pgCode === "23505") continue;
+
+        return res.status(500).json({
+          error: "Database error",
+          ...(isProd
+            ? {}
+            : {
+                debug: {
+                  message: err?.message,
+                  code: err?.code,
+                  detail: err?.detail,
+                  hint: err?.hint,
+                  where: err?.where,
+                },
+              }),
+        });
       }
     }
 
-// ================= END =================
-
-
-const validEnd = validityEnd();
-
-// 🔥 GUARANTEE offer exists (safety guard)
-if (!offer) {
-  const fallback = offers.length ? offers[0] : OFFER_SEED[0];
-  offer = fallback;
-}
-
-// Insert voucher (retry on code collisions)
-let code = "";
-
-for (let attempt = 0; attempt < 5; attempt++) {
-  code = voucherCode();
-
-  // 🔥 safety: skip if somehow empty
-  if (!code) continue;
-
-  const qrUrl = buildQrUrlForCode(code);
-
-  try {
-    const voucherRes = await pool.query(
-      `INSERT INTO vouchers (customer_id, code, validity_end, offer_id, offer_title, offer_description, qr_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, code, validity_end, created_at, offer_id, offer_title, offer_description, qr_url`,
-      [
-        customerId,
-        code,
-        validEnd,
-        offer.id,
-        offer.title,
-        offer.description,
-        qrUrl,
-      ]
-    );
-
-    const row = voucherRes.rows[0];
-
-    return res.status(200).json({
-      ok: true,
-      voucher: {
-        id: row.id,
-        code: row.code,
-        qrUrl: row.qr_url,
-        validityEnd: row.validity_end,
-        createdAt: row.created_at,
-        offer: {
-          id: row.offer_id,
-          code: row.offer_id, // offer code == offer id
-          title: row.offer_title,
-          description: row.offer_description,
-        },
-      },
-      customer: { id: customerId, name, whatsapp },
-    });
-
+    return res.status(500).json({ error: "Failed to generate unique voucher" });
   } catch (err: any) {
-    const pgCode = err?.code;
-
-    if (pgCode === "23505") {
-      // unique violation (likely code collision), retry
-      continue;
-    }
-
     return res.status(500).json({
-      error: "Database error",
-      ...(isProd
-        ? {}
-        : {
-            debug: {
-              message: err?.message,
-              code: err?.code,
-              detail: err?.detail,
-              hint: err?.hint,
-              where: err?.where,
-            },
-          }),
+      error: "Function failed",
+      debug: {
+        message: err?.message,
+        code: err?.code,
+        detail: err?.detail,
+        hint: err?.hint,
+        where: err?.where,
+        stack: err?.stack,
+      },
     });
   }
 }
-
-// If all retries fail
-return res.status(500).json({ error: "Failed to generate unique voucher" });
-
-} catch (err: any) {
-  return res.status(500).json({
-    error: "Function failed",
-    debug: {
-      message: err?.message,
-      code: err?.code,
-      detail: err?.detail,
-      hint: err?.hint,
-      where: err?.where,
-      stack: err?.stack,
-    },
-  });
-}}
