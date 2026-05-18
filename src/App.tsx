@@ -5,9 +5,13 @@ import { Input } from '@/components/ui/input';
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/Terms";
-import QuickLinks from './pages/QuickLinks';
-import SocialHub from './components/SocialHub';
+import QuickLinks from "./pages/QuickLinks";
+import SocialHub from "./components/SocialHub";
 import AdminPanel from "./pages/AdminPanel";
+import OrderOnline from "./pages/OrderOnline";
+import OrderPreview from "./pages/OrderPreview";
+import OrderConfirm from "./pages/OrderConfirm";
+import OrderMenuView from "./pages/OrderMenuView";
 
 // Header Component
 function Header() {
@@ -101,6 +105,7 @@ function Header() {
           {/* CTA Button */}
           <div className="hidden md:block">
             <Button
+              asChild
               className={
                 "font-semibold px-6 py-2 rounded-full transition-all duration-300 hover:-translate-y-0.5 " +
                 (isScrolled
@@ -108,7 +113,7 @@ function Header() {
                   : "bg-coffee-gold text-coffee-dark hover:shadow-gold-lg")
               }
             >
-              Book a Table
+              <a href="/order-menu">Order Online with Free Delivery</a>
             </Button>
           </div>
 
@@ -136,8 +141,10 @@ function Header() {
                   {link.name}
                 </a>
               ))}
-              <Button className="bg-coffee-gold text-coffee-dark font-semibold mt-2 rounded-2xl py-6">
-                Book a Table
+              <Button asChild className="bg-coffee-gold text-coffee-dark font-semibold mt-2 rounded-2xl py-6">
+                <a href="/order-menu" onClick={() => setIsMobileMenuOpen(false)}>
+                  Order Online with Free Delivery
+                </a>
               </Button>
             </nav>
           </div>
@@ -1197,6 +1204,14 @@ function App() {
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/admin" element={<AdminPanel />} />
+
+        {/* Menu-only view first */}
+        <Route path="/order-menu" element={<OrderMenuView />} />
+
+        {/* Cart / checkout flow */}
+        <Route path="/order" element={<OrderOnline />} />
+        <Route path="/order/preview" element={<OrderPreview />} />
+        <Route path="/order/confirm" element={<OrderConfirm />} />
       </Routes>
     </BrowserRouter>
   );
