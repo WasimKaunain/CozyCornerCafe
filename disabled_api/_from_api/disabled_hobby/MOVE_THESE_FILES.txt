@@ -1,0 +1,13 @@
+Move these from `app/api/` to `app/api/disabled_hobby/` (or delete) to reduce deployed serverless functions:
+
+Voucher drop:
+- voucher-create.ts
+- voucher-qr.ts
+- voucher-validate.ts
+- voucher-redeem.ts
+- voucher-init.ts
+
+Promo voucher legacy endpoints (already return 410 but still count if they exist under api/):
+- promo-voucher-create.ts
+- promo-voucher-validate.ts
+- promo-voucher-redeem.ts

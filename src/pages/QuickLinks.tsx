@@ -6,6 +6,9 @@ import { FaWhatsapp, FaInstagram, FaFacebook, FaMapMarkerAlt, FaGlobe } from "re
 const VALIDITY_TEXT = "Valid till 3rd May 11:59 PM";
 const INSTA_URL = "https://www.instagram.com/cozycornersa.cafe/?hl=en";
 
+// Campaign control
+const VOUCHER_CAMPAIGN_OVER = true;
+
 function buildWaText(opts: {
   name: string;
   code: string;
@@ -277,6 +280,11 @@ export default function QuickLinks() {
   }, [promoCode, step]);
 
   async function submit() {
+    if (VOUCHER_CAMPAIGN_OVER) {
+      setError("This voucher campaign has ended. Stay tuned for the next drop.");
+      return;
+    }
+
     if (loading) return;
     setError(null);
     setWaUsedError(null);
@@ -426,7 +434,24 @@ export default function QuickLinks() {
                     Limited-time launch perks. Claim your personalized voucher and keep it safe in WhatsApp.
                   </p>
 
-                  {/* Image carousel moved here (replaces the old 30%/25% tiles) */}
+                  {VOUCHER_CAMPAIGN_OVER ? (
+                    <div className="mt-4 rounded-3xl border border-amber-300/25 bg-amber-300/10 p-4 text-sm text-amber-100">
+                      <div className="font-extrabold tracking-wide">Campaign ended</div>
+                      <div className="mt-1 text-white/80">
+                        This voucher drop has ended. Follow our Instagram to be the first to know about the next offer.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => window.open(INSTA_URL, "_blank", "noopener,noreferrer")}
+                        className="mt-3 inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-black/25 px-4 py-2 text-xs font-bold text-white/90 hover:bg-black/35"
+                      >
+                        <FaInstagram className="h-4 w-4 text-[#E1306C]" aria-hidden="true" />
+                        Follow @cozycornercafe
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {/* Image carousel */}
                   <div className="mt-5 sm:mt-6 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
                     <div className="relative h-44 sm:h-64 md:h-72">
                       <AnimatePresence mode="wait">
@@ -460,7 +485,7 @@ export default function QuickLinks() {
                     </div>
                   </div>
 
-                  {/* Running text (right-to-left) */}
+                  {/* Running text */}
                   <div className="mt-3 sm:mt-4 overflow-hidden rounded-2xl border border-white/10 bg-black/20">
                     <div className="relative">
                       <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-brand-gold/15 via-transparent to-brand-gold/15" />
@@ -485,10 +510,9 @@ export default function QuickLinks() {
                       </motion.div>
                     </div>
                   </div>
-
                 </div>
 
-                {/* Right part: offer live + details (kept) */}
+                {/* Right part */}
                 <div className="p-4 sm:p-7 md:p-10 border-t md:border-t-0 md:border-l border-white/10">
                   <div className="rounded-3xl border border-white/10 bg-black/20 p-4 sm:p-5">
                     <div className="flex items-start gap-3">
@@ -497,64 +521,77 @@ export default function QuickLinks() {
                       </div>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <div className="font-semibold">Offer is LIVE</div>
-                          <span className="inline-flex items-center rounded-full border border-emerald-300/25 bg-emerald-300/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-200">
-                            Running now
+                          <div className="font-semibold">{VOUCHER_CAMPAIGN_OVER ? "Voucher drop ended" : "Offer is LIVE"}</div>
+                          <span
+                            className={
+                              "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold " +
+                              (VOUCHER_CAMPAIGN_OVER
+                                ? "border-white/20 bg-white/10 text-white/70"
+                                : "border-emerald-300/25 bg-emerald-300/10 text-emerald-200")
+                            }
+                          >
+                            {VOUCHER_CAMPAIGN_OVER ? "Closed" : "Running now"}
                           </span>
                         </div>
                         <div className="mt-1 text-xs text-white/60">
-                          Mega Voucher Drop is running till <span className="font-bold text-white/80">3rd May</span>
+                          {VOUCHER_CAMPAIGN_OVER ? (
+                            <>Follow us on Instagram for the next announcement.</>
+                          ) : (
+                            <>
+                              Mega Voucher Drop is running till <span className="font-bold text-white/80">3rd May</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
 
                     <div className="mt-4 sm:mt-5 rounded-3xl border border-white/10 bg-white/5 p-4">
-                      <div className="text-[11px] uppercase tracking-wider text-white/55">Join the Mega Voucher Drop</div>
-                      <div className="mt-2 text-sm text-white/85 leading-relaxed">
-                        Claim your <span className="font-extrabold text-brand-gold">official voucher</span>, keep it safe in WhatsApp, and show it at the counter.
+                      <div className="text-[11px] uppercase tracking-wider text-white/55">
+                        {VOUCHER_CAMPAIGN_OVER ? "Stay connected" : "Join the Mega Voucher Drop"}
                       </div>
-
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-black/20 px-3 py-1 text-xs text-white/75">
-                          <CalendarDays className="h-4 w-4 text-brand-gold" />
-                          {VALIDITY_TEXT}
-                        </span>
-                        <span className="inline-flex items-center rounded-full border border-white/12 bg-black/20 px-3 py-1 text-xs text-white/70">
-                          Limited-time perks
-                        </span>
+                      <div className="mt-2 text-sm text-white/85 leading-relaxed">
+                        {VOUCHER_CAMPAIGN_OVER ? (
+                          <>
+                            New offers and drops are announced on our Instagram. Follow us and turn on notifications so you don’t miss the next one.
+                          </>
+                        ) : (
+                          <>
+                            Claim your <span className="font-extrabold text-brand-gold">official voucher</span>, keep it safe in WhatsApp, and show it at the counter.
+                          </>
+                        )}
                       </div>
 
                       <div className="mt-4 grid gap-2">
-                        <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-                          <div className="text-[11px] uppercase tracking-wider text-white/55">How it works</div>
-                          <ol className="mt-2 grid gap-1 text-[12px] text-white/70">
-                            <li>
-                              <span className="font-bold text-white/85">1)</span> Enter your details
-                            </li>
-                            <li>
-                              <span className="font-bold text-white/85">2)</span> Get your voucher + offer
-                            </li>
-                            <li>
-                              <span className="font-bold text-white/85">3)</span> Send it to WhatsApp (required)
-                            </li>
-                          </ol>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => window.open(INSTA_URL, "_blank", "noopener,noreferrer")}
+                          className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-black/25 px-5 py-3.5 font-extrabold text-white border border-white/15 transition hover:bg-black/35"
+                        >
+                          <FaInstagram className="h-5 w-5 text-[#E1306C]" aria-hidden="true" />
+                          Follow @cozycornercafe
+                        </button>
 
                         <button
                           onClick={() => {
                             setStep("form");
                             closeBannerPermanent();
                           }}
-                          className="w-full inline-flex items-center justify-center rounded-2xl bg-brand-gold px-5 py-3.5 font-extrabold text-brand-navy shadow-[0_18px_55px_rgba(195,160,89,0.28)] transition hover:brightness-110"
+                          disabled={VOUCHER_CAMPAIGN_OVER}
+                          className={
+                            "w-full inline-flex items-center justify-center rounded-2xl px-5 py-3.5 font-extrabold shadow-[0_18px_55px_rgba(195,160,89,0.28)] transition " +
+                            (VOUCHER_CAMPAIGN_OVER
+                              ? "bg-white/10 text-white/50 border border-white/15 cursor-not-allowed"
+                              : "bg-brand-gold text-brand-navy hover:brightness-110")
+                          }
                         >
-                          Join Mega Voucher Drop
+                          {VOUCHER_CAMPAIGN_OVER ? "Voucher drop closed" : "Join Mega Voucher Drop"}
                         </button>
                       </div>
                     </div>
                   </div>
 
                   <div className="mt-3 sm:mt-4 text-[11px] text-white/45">
-                    Tip: Tap “Join Mega Voucher Drop” to claim your voucher.
+                    {VOUCHER_CAMPAIGN_OVER ? "Next offers will be shared on Instagram." : "Tip: Tap “Join Mega Voucher Drop” to claim your voucher."}
                   </div>
                 </div>
               </div>
@@ -757,13 +794,19 @@ export default function QuickLinks() {
                     Send to WhatsApp (Required)
                   </button>
 
-                  <div className="text-center text-[11px] text-white/55">
-                    By using this voucher, you accept Cozy Corner Cafe voucher terms.
-                  </div>
-                </div>
+                  {VOUCHER_CAMPAIGN_OVER ? (
+                    <div className="mt-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[11px] text-white/70 leading-relaxed">
+                      This drop is closed. Follow <span className="font-extrabold text-white">@cozycornercafe</span> on Instagram to get notified about the next offer.
+                    </div>
+                  ) : (
+                    <div className="text-center text-[11px] text-white/55 leading-relaxed">
+                      By using this voucher, you accept Cozy Corner Cafe voucher terms.
+                    </div>
+                  )}
 
-                {/* bottom safe-area spacer for mobile so last content isn't hidden */}
-                <div className="h-[max(14px,env(safe-area-inset-bottom))]" />
+                  {/* bottom safe-area spacer for mobile so last content isn't hidden */}
+                  <div className="h-[max(14px,env(safe-area-inset-bottom))]" />
+                </div>
               </div>
             </motion.div>
           </motion.div>
@@ -970,18 +1013,34 @@ export default function QuickLinks() {
                               type="button"
                               onClick={submit}
                               disabled={
+                                VOUCHER_CAMPAIGN_OVER ||
                                 loading ||
                                 (promoCode.trim().length > 0 && (!igUnlocked || promoStatus !== "valid"))
                               }
-                              className="w-full rounded-2xl bg-brand-gold text-brand-navy px-5 py-4 font-extrabold shadow-[0_18px_55px_rgba(195,160,89,0.28)] disabled:opacity-60 transition hover:brightness-110"
+                              className={
+                                "w-full rounded-2xl px-5 py-4 font-extrabold shadow-[0_18px_55px_rgba(195,160,89,0.28)] disabled:opacity-60 transition " +
+                                (VOUCHER_CAMPAIGN_OVER
+                                  ? "bg-white/10 text-white/55 border border-white/15 cursor-not-allowed"
+                                  : "bg-brand-gold text-brand-navy hover:brightness-110")
+                              }
                             >
-                              {loading ? "Claiming..." : "Claim Official Voucher"}
+                              {VOUCHER_CAMPAIGN_OVER
+                                ? "Voucher campaign ended"
+                                : loading
+                                  ? "Claiming..."
+                                  : "Claim Official Voucher"}
                             </button>
 
-                            <div className="text-center text-[11px] text-white/55 leading-relaxed">
-                              After claiming, you must share the voucher to your WhatsApp and show the WhatsApp
-                              message at the counter.
-                            </div>
+                            {VOUCHER_CAMPAIGN_OVER ? (
+                              <div className="mt-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[11px] text-white/70 leading-relaxed">
+                                This drop is closed. Follow <span className="font-extrabold text-white">@cozycornercafe</span> on Instagram to get notified about the next offer.
+                              </div>
+                            ) : (
+                              <div className="text-center text-[11px] text-white/55 leading-relaxed">
+                                After claiming, you must share the voucher to your WhatsApp and show the WhatsApp
+                                message at the counter.
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>

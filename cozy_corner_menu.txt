@@ -1,0 +1,150 @@
+
+COZY CORNER CAFE
+================================================================================
+
+COFFEE                                                             Price     Kcal
+                                                                    س.ر
+
+Cozy Latte            Hot / Cold / Frape                           12/12/14   88
+كوزي لاتيه            ساخن / بارد / معطر
+
+White Mocha           Hot / Cold / Frape                           12/12/14   91
+موكا بيضاء            ساخن / بارد / معطر
+
+Pistachio Latte       Hot / Cold / Frape                           12/12/14   123
+لاتيه فستق            ساخن / بارد / معطر
+
+Caramel Latte         Hot / Cold / Frape                           12/12/14   94
+كراميل لاتيه          ساخن / بارد / معطر
+
+Cappuccino            Hot / Cold / Frape                           12/12/14   75
+كابتشينو              ساخن / بارد / معطر
+
+Latte                 Hot / Cold / Frape                           12/12/14   60
+لاتيه                 ساخن / بارد / معطر
+
+Flat White            Hot / Cold / Frape                           12/12/14   75
+فلات وايت             ساخن / بارد / معطر
+
+Cortado               Hot / Cold / Frape                           12/12/14   85
+كورتادو               ساخن / بارد / معطر
+
+Matcha                Hot / Cold                                   16         57
+ماتشا                 ساخن / بارد
+
+Americano             Hot / Cold                                   8          2
+أمريكانو              ساخن / بارد
+
+Espresso              Hot / Cold                                   7          2
+اسبريسو               ساخن / بارد
+
+Coffee Of The Day     Hot / Cold                                   10         2
+قهوة اليوم            ساخن / بارد
+
+V60                   Hot / Cold                                   14         2
+V٦٠                   ساخن / بارد
+
+Cozy Cold Brew        Hot / Cold                                   12         2
+المشروب البارد        ساخن / بارد
+
+
+TEA                                                                 Price   Kcal
+                                                                     س.ر
+
+Chai latte            Hot                                          8          155
+شاي لاتيه             ساخن
+
+Iced Peach Tea        Cold                                         12         5
+شاي الخوخ المثلج      بارد
+
+Black Tea             Hot                                          5          2
+شاي أسود              ساخن
+
+Lemon Ginger Tea      Hot                                          6          4
+شاي ليمون وزنجبيل     ساخن
+
+Cutting Chai          Hot                                          5          2
+شاي كاتينج            ساخن
+
+
+================================================================================
+COZY CORNER CAFE
+================================================================================
+
+OTHER DRINK                                                        Price   Kcal
+                                                                     س.ر
+
+Hot Chocolate         Hot                                          9          240
+شكولاتة ساخنة         ساخن
+
+Mojito                Cold                                         14         130
+موهيتو                بارد
+
+Hibiscus Lemonade     Cold                                         14         105
+عصير الكركديه بالليمون بارد
+
+Turkish Coffee        Hot                                          7          2
+قهوة تركية            ساخن
+
+Arabic Qahwa Jar      Hot                                          10         5
+جرة القهوة العربية    ساخن
+
+
+DESSERT                                                             Price   Kcal
+                                                                     س.ر
+
+Pancake               Half / Full                                  8/14       190
+فطيرة بان كيك         نصف / ممتلئ
+
+Waffles                                                              8/14       291
+وافل
+
+French Toast                                                        16         350
+خبز فرنسي محمص
+
+Choco Pudding Cake                                                  15         365
+كعكة بودنغ الشوكولاتة
+
+Croissant                                                           8          451
+كرواسون
+
+Muffin                                                              8          355
+مافن
+
+Chease Cake                                                         12         378
+تشيز كيك
+
+Cookies                                                             7          370
+كوكيز
+
+Ciabatta                                                            16         270
+شياباتا
+
+
+ADDON                                                               Price
+                                                                     س.ر
+
+Extra Shot                                                          2
+جرعة إضافية
+
+Extra Sauces                                                        2
+صلصة إضافية
+
+Extra Cream                                                         2
+قوام كريمي إضافي
+
+Soya or Almond milk                                                 2
+حليب الصويا أو اللوز
+
+
+WATER                                                               Price
+                                                                     س.ر
+
+Drinking Water 330 ml                                               1
+مياه شرب ٣٣٠ مل
+
+Still Water 330 ml                                                  9
+مياه عادية ٣٣٠ مل
+
+Sparkling water 250 ml                                              9
+مياه غازية ٢٥٠ مل

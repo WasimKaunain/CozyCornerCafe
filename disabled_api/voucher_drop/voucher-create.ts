@@ -1,0 +1,547 @@
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { z } from "zod";
+import { getPool } from "./_db.js";
+import { withCors } from "./_cors.js";
+import { customAlphabet } from "nanoid";
+
+// Offer pool (DB-backed catalog)
+// NOTE: We keep an in-code seed list so the DB can be auto-initialized.
+const OFFER_SEED = [
+  {
+    id: 1,
+    title: "Buy 1 Drink, Get 1 Free",
+    description: "Buy any drink and get another drink free of equal or lesser value.",
+    initialStock: 8,
+  },
+  {
+    id: 2,
+    title: "Buy Full Pancakes/Waffles and Get Free Coffee of the Day",
+    description:
+      "Order a full portion of pancakes or waffles and enjoy a complimentary Coffee of the Day.",
+    initialStock: 8,
+  },
+  {
+    id: 3,
+    title: "Buy Full Pancakes/Waffles and Get V60 Free",
+    description: "Order pancakes or waffles and get a free V60 coffee.",
+    initialStock: 8,
+  },
+  {
+    id: 4,
+    title: "Buy French Toast and Get  50% Off on any Hot Coffee",
+    description: "Order French toast and get 50% off any hot coffee.",
+    initialStock: 8,
+  },
+  {
+    id: 5,
+    title: "Buy any Ciabatta and Get Free Cappuccino",
+    description: "Order a ciabatta sandwich and enjoy a free cappuccino.",
+    initialStock: 8,
+  },
+  {
+    id: 6,
+    title: "Buy any Ciabatta and Get Mojito for Just 3 SR",
+    description: "Order a ciabatta sandwich and get a mojito for only 3 SR.",
+    initialStock: 8,
+  },
+  {
+    id: 7,
+    title: "Buy Cheesecake and Get Free Espresso",
+    description: "Order cheesecake and get a free espresso.",
+    initialStock: 10,
+  },
+  {
+    id: 8,
+    title: "Buy Peach Tea for Only 5 SR",
+    description: "Enjoy a peach tea for only 5 SR.",
+    initialStock: 8,
+  },
+  {
+    id: 9,
+    title: "Buy Espresso for Only 2 SR",
+    description: "Grab an espresso for only 2 SR.",
+    initialStock: 10,
+  },
+  {
+    id: 10,
+    title: "Buy any Frappe and Get 50% Off on Any Dessert",
+    description: "Order any frappe and get 50% off any dessert.",
+    initialStock: 10,
+  },
+  {
+    id: 11,
+    title: "Free Passion Fruit Mojito",
+    description: "Enjoy a passion fruit mojito on us.",
+    initialStock: 4,
+  },
+  {
+    id: 12,
+    title: "Buy Hibiscus Lemonade and Get Free Croissant",
+    description: "Order a hibiscus lemonade and enjoy a free croissant.",
+    initialStock: 10,
+  },
+  {
+    id: 13,
+    title: "WOW Special – 50% Off Your Total Bill. Valid on cash Payment Only.",
+    description:
+      "\n\nIndulge in your full order and pay only half the amount.\nOffer valid on cash payments only.",
+    initialStock: 30,
+  },
+] as const;
+
+type OfferId = (typeof OFFER_SEED)[number]["id"];
+
+type Offer = {
+  id: OfferId;
+  title: string;
+  description: string;
+  initialStock: number;
+};
+
+function pickWeightedOffer(offers: Offer[], usedById: Record<number, number>): Offer {
+  const weighted: Array<{ offer: Offer; w: number }> = offers
+    .map((o) => ({
+      offer: o,
+      w: Math.max(0, (o.initialStock ?? 0) - (usedById[o.id] ?? 0)),
+    }))
+    .filter((x) => x.w > 0);
+
+  if (!weighted.length) {
+    // If all offers are exhausted, just pick the last offer (never block issuance)
+    return offers[offers.length - 1];
+  }
+
+  const total = weighted.reduce((s, x) => s + x.w, 0);
+  let r = Math.random() * total;
+  for (const x of weighted) {
+    r -= x.w;
+    if (r <= 0) return x.offer;
+  }
+  return weighted[weighted.length - 1].offer;
+}
+
+const bodySchema = z.object({
+  name: z.string().trim().min(2).max(80),
+  whatsapp: z
+    .string()
+    .transform((v) => {
+      try {
+        return normalizeWhatsappStrict(v);
+      } catch {
+        return String(v ?? "");
+      }
+    })
+    .refine((v) => {
+      try {
+        normalizeWhatsappStrict(v);
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Invalid WhatsApp number. Use +91XXXXXXXXXX or +966XXXXXXXXX / +9660XXXXXXXXX"),
+  promoCode: z.string().trim().max(48).optional().or(z.literal("")),
+});
+
+/**
+ * Strict WhatsApp normalization:
+ * - Allow India and Saudi only
+ * - If user omits '+', add it for 91/966 numbers
+ * - +91 must be exactly 10 digits after the country code
+ * - +966 can be:
+ *    - 9 digits after country code (e.g. +9665XXXXXXXX)
+ *    - OR 10 digits if the first digit is 0 (e.g. +96605XXXXXXXX)
+ */
+function normalizeWhatsappStrict(input: string) {
+  const raw = String(input ?? "").trim();
+  if (!raw) throw new Error("INVALID_WA");
+
+  // Keep digits and an optional leading +
+  const cleaned = raw.startsWith("+")
+    ? "+" + raw.slice(1).replace(/[^0-9]/g, "")
+    : raw.replace(/[^0-9]/g, "");
+
+  // Add '+' if missing
+  const withPlus = cleaned.startsWith("+") ? cleaned : `+${cleaned}`;
+
+  // India
+  if (withPlus.startsWith("+91")) {
+    const rest = withPlus.slice(3);
+    if (!/^[0-9]{10}$/.test(rest)) throw new Error("INVALID_WA");
+    return `+91${rest}`;
+  }
+
+  // Saudi
+  if (withPlus.startsWith("+966")) {
+    const rest = withPlus.slice(4);
+    if (!/^[0-9]{9,10}$/.test(rest)) throw new Error("INVALID_WA");
+    if (rest.length === 9) return `+966${rest}`;
+    // length === 10
+    if (!rest.startsWith("0")) throw new Error("INVALID_WA");
+    return `+966${rest}`;
+  }
+
+  // If user typed without '+', do a last attempt for leading ISD codes
+  if (cleaned.startsWith("91")) {
+    const rest = cleaned.slice(2);
+    if (!/^[0-9]{10}$/.test(rest)) throw new Error("INVALID_WA");
+    return `+91${rest}`;
+  }
+  if (cleaned.startsWith("966")) {
+    const rest = cleaned.slice(3);
+    if (!/^[0-9]{9,10}$/.test(rest)) throw new Error("INVALID_WA");
+    if (rest.length === 10 && !rest.startsWith("0")) throw new Error("INVALID_WA");
+    return `+966${rest}`;
+  }
+
+  throw new Error("INVALID_WA");
+}
+
+const nano = customAlphabet("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 5);
+
+function voucherCode() {
+  return nano();
+}
+
+// 16-char id stored as plain TEXT in DB; QR encodes this exact string (no hashing/encoding).
+const promoVoucherId = customAlphabet("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 16);
+function generatePromoVoucherId() {
+  return promoVoucherId();
+}
+
+function buildQrUrlForCode(code: string) {
+  // Counter-scan QR: encode only voucher code (or voucher_id for promo)
+  return `https://api.qrserver.com/v1/create-qr-code/?size=420x420&data=${encodeURIComponent(code)}`;
+}
+
+// Valid till 3rd May midnight (23:59:59) in Asia/Riyadh
+function validityEnd() {
+  // NOTE: JS Date uses local timezone on server; Vercel runs UTC.
+  // We'll create 2026-05-03T23:59:59 in Asia/Riyadh by subtracting 3 hours (UTC+3).
+  // Riyadh is UTC+3 (no DST).
+  const utc = new Date(Date.UTC(2026, 4, 3, 20, 59, 59));
+  return utc;
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  withCors(res);
+
+  if (req.method === "OPTIONS") return res.status(204).end();
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
+  const parsed = bodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+  }
+
+  // const isProd = process.env.NODE_ENV === "production";
+  const isProd = false;
+
+  try {
+    const { name, whatsapp } = parsed.data;
+    const promoCodeInput = String(parsed.data.promoCode ?? "").trim();
+    const wantsPromo = promoCodeInput.length > 0;
+
+    const pool = getPool();
+
+    // Ensure schema exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS customers (
+        id BIGSERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        whatsapp TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS offers (
+        id INT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        initial_stock INT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS vouchers (
+        id BIGSERIAL PRIMARY KEY,
+        customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        code TEXT NOT NULL UNIQUE,
+        validity_end TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        used_at TIMESTAMPTZ
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_customers_whatsapp ON customers(whatsapp);
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_vouchers_customer_id ON vouchers(customer_id);
+      CREATE INDEX IF NOT EXISTS idx_vouchers_customer_id ON vouchers(customer_id);
+    `);
+
+    // Promo tables migrations (idempotent). We run this unconditionally so deployments don't depend on first promo request.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS promo_code (
+        id BIGSERIAL PRIMARY KEY,
+        influencer_name TEXT NOT NULL,
+        promo_code TEXT NOT NULL UNIQUE,
+        offer_title TEXT NOT NULL,
+        description TEXT,
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_promo_code_code ON promo_code(promo_code);
+
+      CREATE TABLE IF NOT EXISTS promo_voucher (
+        id BIGSERIAL PRIMARY KEY,
+        customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        promo_id BIGINT NOT NULL REFERENCES promo_code(id) ON DELETE RESTRICT,
+        promo_code TEXT NOT NULL,
+        voucher_id TEXT NOT NULL,
+        qr_url TEXT,
+        validity_end TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        used_at TIMESTAMPTZ
+      );
+
+      ALTER TABLE promo_voucher ADD COLUMN IF NOT EXISTS promo_code TEXT;
+      ALTER TABLE promo_voucher ADD COLUMN IF NOT EXISTS voucher_id TEXT;
+      ALTER TABLE promo_voucher ADD COLUMN IF NOT EXISTS qr_url TEXT;
+
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_promo_voucher_voucher_id ON promo_voucher(voucher_id);
+      CREATE INDEX IF NOT EXISTS idx_promo_voucher_customer_id ON promo_voucher(customer_id);
+      CREATE INDEX IF NOT EXISTS idx_promo_voucher_promo_id ON promo_voucher(promo_id);
+    `);
+
+    // ---- Schema migrations (idempotent) ----
+    await pool.query(`
+      ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS offer_id INT;
+      ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS offer_title TEXT;
+      ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS offer_description TEXT;
+      ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS qr_url TEXT;
+
+      CREATE INDEX IF NOT EXISTS idx_vouchers_offer_id ON vouchers(offer_id);
+    `);
+
+    // Seed offers (idempotent) - only for normal vouchers
+    for (const o of OFFER_SEED) {
+      await pool.query(
+        `INSERT INTO offers (id, title, description, initial_stock)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (id) DO UPDATE
+         SET title = EXCLUDED.title,
+             description = EXCLUDED.description,
+             initial_stock = EXCLUDED.initial_stock`,
+        [o.id, o.title, o.description, o.initialStock]
+      );
+    }
+
+    await pool.query(`
+      UPDATE vouchers
+      SET offer_id = COALESCE(offer_id, 1),
+          offer_title = COALESCE(offer_title, 'Buy 1 Drink, Get 1 Free'),
+          offer_description = COALESCE(offer_description, 'Buy any drink and get another drink free of equal or lesser value.')
+      WHERE offer_id IS NULL OR offer_title IS NULL OR offer_description IS NULL;
+    `);
+
+    // Insert customer (WhatsApp must be unique)
+    let customerId: number;
+    try {
+      const customerRes = await pool.query(
+        `INSERT INTO customers (name, whatsapp) VALUES ($1, $2) RETURNING id`,
+        [name, whatsapp]
+      );
+      customerId = customerRes.rows[0]?.id as number;
+    } catch (err: any) {
+      if (err?.code === "23505") {
+        return res.status(409).json({ error: "This WhatsApp number has already been used." });
+      }
+      throw err;
+    }
+
+    const validEnd = validityEnd();
+
+    // ===== PROMO PATH (same endpoint) =====
+    if (wantsPromo) {
+      const promoCode = promoCodeInput.toUpperCase();
+
+      const promoRes = await pool.query(
+        `SELECT id, offer_title, description
+         FROM promo_code
+         WHERE promo_code = $1 AND active = TRUE
+         LIMIT 1`,
+        [promoCode]
+      );
+
+      const promo = promoRes.rows?.[0];
+      if (!promo) {
+        return res.status(404).json({ error: "Invalid promo code" });
+      }
+
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const voucherId = generatePromoVoucherId();
+        if (!voucherId) continue;
+
+        const qrUrl = buildQrUrlForCode(voucherId);
+
+        try {
+          const vRes = await pool.query(
+            `INSERT INTO promo_voucher (customer_id, promo_id, promo_code, voucher_id, qr_url, validity_end)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             RETURNING id, voucher_id, qr_url, validity_end, created_at`,
+            [customerId, Number(promo.id), promoCode, voucherId, qrUrl, validEnd]
+          );
+
+          const row = vRes.rows[0];
+
+          return res.status(200).json({
+            ok: true,
+            voucher: {
+              id: Number(row.id),
+              code: String(row.voucher_id),
+              qrUrl: row.qr_url ? String(row.qr_url) : undefined,
+              validityEnd: row.validity_end,
+              createdAt: row.created_at,
+              offer: {
+                id: Number(promo.id),
+                code: Number(promo.id),
+                title: String(promo.offer_title),
+                description: promo.description == null ? undefined : String(promo.description),
+              },
+              meta: { kind: "PROMO" },
+            },
+            customer: { id: customerId, name, whatsapp },
+          });
+        } catch (err: any) {
+          if (err?.code === "23505") continue; // voucher_id collision
+          throw err;
+        }
+      }
+
+      return res.status(500).json({ error: "Failed to generate unique promo voucher" });
+    }
+
+    // ===== NORMAL PATH =====
+
+    // Total vouchers issued so far (unlimited campaign)
+    const totalRes = await pool.query(`SELECT COUNT(*)::int AS cnt FROM vouchers`);
+    const totalIssued = Number(totalRes.rows?.[0]?.cnt ?? 0);
+
+    const offersRes = await pool.query(
+      `SELECT id, title, description, initial_stock FROM offers ORDER BY id ASC`
+    );
+    const offers: Offer[] = offersRes.rows.map((r: any) => ({
+      id: Number(r.id) as OfferId,
+      title: String(r.title),
+      description: String(r.description),
+      initialStock: Number(r.initial_stock),
+    }));
+
+    const countsRes = await pool.query(
+      `SELECT offer_id, COUNT(*)::int FROM vouchers WHERE offer_id IS NOT NULL GROUP BY offer_id`
+    );
+    const usedById: Record<number, number> = {};
+    for (const r of countsRes.rows) usedById[Number(r.offer_id)] = Number(r.cnt);
+
+    const nextTotal = totalIssued + 1;
+    const eligible = (offers.length ? offers : (OFFER_SEED as any)).filter((o: Offer) => {
+      const ratio = (o.initialStock ?? 0) / 130;
+      const cap = Math.floor(nextTotal * ratio);
+      const used = usedById[o.id] ?? 0;
+      return used < cap;
+    });
+
+    let offer: Offer | null = null;
+
+    if (eligible.length > 0) {
+      offer = eligible[Math.floor(Math.random() * eligible.length)];
+    } else {
+      const baseOffers = offers.length ? offers : (OFFER_SEED as any);
+      const totalWeight = baseOffers.reduce((s: number, o: Offer) => s + (o.initialStock || 0), 0);
+
+      if (totalWeight > 0) {
+        let r = Math.random() * totalWeight;
+        for (const o of baseOffers) {
+          r -= o.initialStock || 0;
+          if (r <= 0) {
+            offer = o;
+            break;
+          }
+        }
+      }
+
+      if (!offer) offer = baseOffers[0];
+    }
+
+    if (!offer) {
+      const fallback = offers.length ? offers[0] : OFFER_SEED[0];
+      offer = fallback;
+    }
+
+    // Insert voucher (retry on code collisions)
+    let code = "";
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      code = voucherCode();
+      if (!code) continue;
+
+      const qrUrl = buildQrUrlForCode(code);
+
+      try {
+        const voucherRes = await pool.query(
+          `INSERT INTO vouchers (customer_id, code, validity_end, offer_id, offer_title, offer_description, qr_url)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING id, code, validity_end, created_at, offer_id, offer_title, offer_description, qr_url`,
+          [customerId, code, validEnd, offer.id, offer.title, offer.description, qrUrl]
+        );
+
+        const row = voucherRes.rows[0];
+
+        return res.status(200).json({
+          ok: true,
+          voucher: {
+            id: row.id,
+            code: row.code,
+            qrUrl: row.qr_url,
+            validityEnd: row.validity_end,
+            createdAt: row.created_at,
+            offer: {
+              id: row.offer_id,
+              code: row.offer_id,
+              title: row.offer_title,
+              description: row.offer_description,
+            },
+          },
+          customer: { id: customerId, name, whatsapp },
+        });
+      } catch (err: any) {
+        const pgCode = err?.code;
+        if (pgCode === "23505") continue;
+
+        return res.status(500).json({
+          error: "Database error",
+          ...(isProd
+            ? {}
+            : {
+                debug: {
+                  message: err?.message,
+                  code: err?.code,
+                  detail: err?.detail,
+                  hint: err?.hint,
+                  where: err?.where,
+                },
+              }),
+        });
+      }
+    }
+
+    return res.status(500).json({ error: "Failed to generate unique voucher" });
+  } catch (err: any) {
+    return res.status(500).json({
+      error: "Function failed",
+      debug: {
+        message: err?.message,
+        code: err?.code,
+        detail: err?.detail,
+        hint: err?.hint,
+        where: err?.where,
+        stack: err?.stack,
+      },
+    });
+  }
+}
